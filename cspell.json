@@ -1,0 +1,29 @@
+{
+  "version": "0.2",
+  "language": "en-GB",
+  "enabledLanguageIds": [
+    "markdown",
+    "plaintext",
+    "typescript",
+    "javascript",
+    "typescriptreact",
+    "javascriptreact",
+    "json",
+    "jsonc"
+  ],
+  "ignorePaths": ["node_modules", "dist", "build", ".git", "*.min.js", "*.css", ".claude/conversation-history"],
+  "words": [
+    "argh",
+    "gonna",
+    "gotta",
+    "haha",
+    "hmm",
+    "kinda",
+    "linters",
+    "meh",
+    "nope",
+    "sorta",
+    "wanna",
+    "yep"
+  ]
+}
