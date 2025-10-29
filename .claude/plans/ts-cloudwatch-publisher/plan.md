@@ -37,43 +37,6 @@ Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size v
 
 ## Detailed Implementation Steps
 
-### Step 2: Create the Log Publishing Script
-
-**Action:** Create the bash script that publishes logs to CloudWatch
-
-**File:** `scripts/publish-log.sh`
-
-**Script Requirements:**
-
-- Set strict error handling (`set -euo pipefail`)
-- Validate required environment variables
-- Publish to CloudWatch using AWS CLI
-- Output structured logs with service name, a message, and timestamp
-- Handle errors gracefully with retry logic and logging
-
-**Key Environment Variables:**
-
-- `AWS_REGION` - AWS region for CloudWatch (required)
-
-**Error Handling:**
-
-- Check AWS CLI availability
-- Validate environment variables before execution
-- Retry failed publishes up to 3 times with exponential backoff
-- Log all errors to stderr for troubleshooting
-
-**Reasoning:**
-
-- Strict error handling (`set -euo pipefail`) ensures failures are caught immediately
-- Environment variable validation prevents runtime failures
-- Retry logic handles transient network issues
-- Structured logging enables easy troubleshooting
-- Separate script file allows independent testing outside Docker
-
-**Expected Outcome:** Executable bash script that reliably publishes logs
-
----
-
 ### Step 3: Create Cron Configuration
 
 **Action:** Create crontab file for scheduling log publication

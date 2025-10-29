@@ -1,5 +1,13 @@
 # Follow up
 
+## Step 2 - Check the flags
+
+    ``sh
+    - Set strict error handling (`set -euo pipefail`)
+    ``
+
+I've never see u or o used before. I believe I've only ever seen e and x, though I might be confusing x with the chmod
+
 ## Step 2 - Claude even gave me the query
 
     ``sh
