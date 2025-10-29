@@ -65,3 +65,7 @@ I could even just boot an alpine image and detect the difference that way. We'll
 It's referencing .DS_Store in dockerignore. Is it good practice then to just exclude files like this from all operating systems?
 
 This is where it's actually a good idea to quiz me to see if I know what's going on. dockerignore could also just prevent those files going out of docker and back into the host lol. Or ignoring these files completely on either side
+
+## Step 7 - Actually, I totally want it to just make a sam template deployable to AWS so it can sort out its own IAM stuff, and also set up its own Cloudwatch stuff when deployed. And then also I guess put it to the test since it will need to be published to dev and prod
+
+And then also ask the agent what other bare minimum things I'd need for enterprise level code. And also I guess, make another other publisher, and then see what I need to do about the caching layer of apk packages
