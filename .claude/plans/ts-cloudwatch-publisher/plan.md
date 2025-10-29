@@ -11,64 +11,6 @@
 
 ## Detailed Implementation Steps
 
-### Step 5: Create Dockerfile
-
-**Action:** Create optimised Dockerfile using Alpine Linux
-
-**File:** `Dockerfile`
-
-**Dockerfile Structure:**
-
-```dockerfile
-FROM alpine:3.19
-
-# Install only essential packages
-RUN apk add --no-cache \
-    bash \
-    aws-cli \
-    dcron
-
-# Create non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-# Copy scripts
-COPY scripts/ /scripts/
-
-# Make scripts executable
-RUN chmod +x /scripts/*.sh
-
-# Set ownership to non-root user
-RUN chown -R appuser:appgroup /scripts
-
-# Switch to non-root user
-USER appuser
-
-# Set default environment variables
-ENV AWS_REGION=$AWS_REGION
-
-# Container will run indefinitely
-ENTRYPOINT ["/scripts/entrypoint.sh"]
-```
-
-**Reasoning for Each Section:**
-
-1. **Alpine 3.19:** Latest stable Alpine, minimal size (~7MB)
-2. **Package selection:**
-   - `bash` - Required for scripts (Alpine uses ash by default)
-   - `aws-cli` - CloudWatch integration
-   - `dcron` - Alpine's lightweight cron daemon
-3. **Non-root user:** Security best practice, limits blast radius of vulnerabilities
-4. **Script copying:** COPY is cached by Docker, faster rebuilds
-5. **Executable permissions:** Ensures scripts can run
-6. **Ownership change:** Non-root user must own files to execute them
-7. **USER directive:** All subsequent operations run as non-root
-
-**Expected Image Size:** < 100MB (meets excellence criteria)
-
-**Expected Outcome:** Dockerfile ready to build lean, secure image
-
----
-
 ### Step 6: Create .dockerignore
 
 **Action:** Create .dockerignore to exclude unnecessary files from build context

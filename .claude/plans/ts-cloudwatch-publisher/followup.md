@@ -53,3 +53,7 @@ I'd like to play around with that later
 ## Step 4 - There are now duplicated commands for log and log_error
 
 Perhaps I would prefer to get it to run ts so that I can have a helper package that references a consistent log and log_error
+
+## Step 5 - Caching dependencies
+
+I noticed that it's installing bash, aws-cli, and dcron, but I wonder if there's a way to better cache this layer, or rather, if I'm already going to be referencing these packages frequently, is it worth breaking up the docker file so other docker container can use a base that's already got common dependencies in there? I expect that DX over time would investigate something like this as a potential speed up
