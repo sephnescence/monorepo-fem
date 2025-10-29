@@ -26,22 +26,22 @@ Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size v
 
 - [ ] Create project directory structure
 - [ ] Create Dockerfile with Alpine base
-- [ ] Create bash script for publishing metrics
+- [ ] Create bash script for publishing logs
 - [ ] Create cron configuration
 - [ ] Create entrypoint script
 - [ ] Create .dockerignore file
 - [ ] Create comprehensive README with CLI instructions
 - [ ] Build and test Docker image locally
-- [ ] Verify metrics appear in CloudWatch
+- [ ] Verify logs appear in CloudWatch
 - [ ] Document troubleshooting steps
 
 ## Detailed Implementation Steps
 
-### Step 2: Create the Metric Publishing Script
+### Step 2: Create the Log Publishing Script
 
-**Action:** Create the bash script that publishes metrics to CloudWatch
+**Action:** Create the bash script that publishes logs to CloudWatch
 
-**File:** `scripts/publish-metric.sh`
+**File:** `scripts/publish-log.sh`
 
 **Script Requirements:**
 
@@ -70,20 +70,20 @@ Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size v
 - Structured logging enables easy troubleshooting
 - Separate script file allows independent testing outside Docker
 
-**Expected Outcome:** Executable bash script that reliably publishes metrics
+**Expected Outcome:** Executable bash script that reliably publishes logs
 
 ---
 
 ### Step 3: Create Cron Configuration
 
-**Action:** Create crontab file for scheduling metric publication
+**Action:** Create crontab file for scheduling log publication
 
 **File:** `scripts/crontab`
 
 **Configuration:**
 
 ```sh
-*/1 * * * * /scripts/publish-metric.sh >> /proc/1/fd/1 2>> /proc/1/fd/2
+*/1 * * * * /scripts/publish-log.sh >> /proc/1/fd/1 2>> /proc/1/fd/2
 ```
 
 **Reasoning:**
