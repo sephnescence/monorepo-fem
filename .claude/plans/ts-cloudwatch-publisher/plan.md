@@ -37,30 +37,6 @@ Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size v
 
 ## Detailed Implementation Steps
 
-### Step 3: Create Cron Configuration
-
-**Action:** Create crontab file for scheduling log publication
-
-**File:** `scripts/crontab`
-
-**Configuration:**
-
-```sh
-*/1 * * * * /scripts/publish-log.sh >> /proc/1/fd/1 2>> /proc/1/fd/2
-```
-
-**Reasoning:**
-
-- `*/1 * * * *` runs every minute as required
-- `/proc/1/fd/1` redirects stdout to container's main process (Docker best practice)
-- `/proc/1/fd/2` redirects stderr to container's main process
-- This ensures logs appear in `docker logs` output
-- No log files needed - all output goes to Docker's log driver
-
-**Expected Outcome:** Crontab file ready to install in container
-
----
-
 ### Step 4: Create Container Entrypoint Script
 
 **Action:** Create entrypoint script that starts cron and keeps container running
