@@ -11,33 +11,6 @@
 
 ## Detailed Implementation Steps
 
-### Step 6: Create .dockerignore
-
-**Action:** Create .dockerignore to exclude unnecessary files from build context
-
-**File:** `.dockerignore`
-
-**Content:**
-
-```sh
-README.md
-.git
-.gitignore
-*.md
-!scripts/*.md
-```
-
-**Reasoning:**
-
-- Reduces build context size
-- Speeds up builds
-- Prevents accidental inclusion of sensitive files
-- Keeps image minimal
-
-**Expected Outcome:** Faster builds, smaller context
-
----
-
 ### Step 7: Create Comprehensive README
 
 **Action:** Create documentation that enables anyone to use this image
@@ -203,7 +176,7 @@ This might cause issues. -d and -it are likely mutually exclusive. The plan said
 
 ## Execution Order
 
-Execute steps sequentially from 5-7. Each step builds on previous steps. Do not skip verification steps.
+Execute step7. Each step has built on previous steps. Do not skip verification steps.
 
 ## Notes for Implementation
 

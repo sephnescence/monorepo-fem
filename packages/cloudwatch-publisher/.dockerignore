@@ -1,0 +1,17 @@
+# Exclude documentation files
+# These files are for users, not needed inside the container
+README.md
+*.md
+
+# Exclude git metadata
+# Git history is not needed in the container image
+.git
+.gitignore
+
+# Exclude any potential sensitive or temporary files
+# Prevents accidental inclusion of local development artifacts
+.env
+.env.*
+*.log
+*.tmp
+.DS_Store
