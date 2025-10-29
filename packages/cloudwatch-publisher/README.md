@@ -5,6 +5,7 @@
 This Docker image publishes heartbeat logs to AWS CloudWatch Logs every minute. It's designed as a lightweight, self-contained monitoring solution that demonstrates continuous metric publishing using bash scripts and cron scheduling.
 
 **Why this exists:**
+
 - Validates AWS CloudWatch connectivity and permissions
 - Provides a simple example of scheduled tasks in Docker containers
 - Demonstrates observability best practices in a minimal footprint
@@ -45,7 +46,7 @@ Your AWS credentials need the following permissions:
 
 ### 1. Build the Image
 
-```bash
+```sh
 docker build -t cloudwatch-publisher .
 ```
 
@@ -53,7 +54,7 @@ docker build -t cloudwatch-publisher .
 
 ### 2. Run the Container
 
-```bash
+```sh
 docker run -d \
   -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
   -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
@@ -63,13 +64,14 @@ docker run -d \
 ```
 
 **Flag explanations:**
+
 - `-d` - Runs the container in detached mode (background)
 - `-e` - Sets environment variables (AWS credentials and region)
 - `--name` - Assigns a friendly name for easier management
 
 **For testing (auto-cleanup on stop):**
 
-```bash
+```sh
 docker run -d \
   --rm \
   -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
@@ -83,7 +85,7 @@ The `--rm` flag automatically removes the container when it stops - useful for t
 
 ### 3. View Logs
 
-```bash
+```sh
 docker logs -f cloudwatch-publisher
 ```
 
@@ -91,7 +93,7 @@ docker logs -f cloudwatch-publisher
 
 ### 4. Stop the Container
 
-```bash
+```sh
 docker stop cloudwatch-publisher
 ```
 
@@ -101,15 +103,15 @@ docker stop cloudwatch-publisher
 
 All configuration is done via environment variables:
 
-| Environment Variable | Required | Default | Description |
-|---------------------|----------|---------|-------------|
-| `AWS_ACCESS_KEY_ID` | Yes | None | AWS access key for authentication |
-| `AWS_SECRET_ACCESS_KEY` | Yes | None | AWS secret key for authentication |
-| `AWS_REGION` | No | `ap-southeast-2` | AWS region where logs will be published |
+| Environment Variable    | Required | Default          | Description                             |
+| ----------------------- | -------- | ---------------- | --------------------------------------- |
+| `AWS_ACCESS_KEY_ID`     | Yes      | None             | AWS access key for authentication       |
+| `AWS_SECRET_ACCESS_KEY` | Yes      | None             | AWS secret key for authentication       |
+| `AWS_REGION`            | No       | `ap-southeast-2` | AWS region where logs will be published |
 
 **Example with custom region:**
 
-```bash
+```sh
 docker run -d \
   -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
   -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
@@ -122,7 +124,7 @@ docker run -d \
 
 ### Check Container is Running
 
-```bash
+```sh
 docker ps
 ```
 
@@ -130,7 +132,7 @@ You should see `cloudwatch-publisher` in the list of running containers.
 
 ### Check Container Logs
 
-```bash
+```sh
 docker logs cloudwatch-publisher
 ```
 
@@ -159,11 +161,13 @@ You should see output like:
 ### Container Exits Immediately
 
 **Check logs:**
-```bash
+
+```sh
 docker logs cloudwatch-publisher
 ```
 
 **Common causes:**
+
 1. **Missing environment variables** - Ensure all required variables are set
 2. **Invalid AWS credentials** - Verify `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are correct
 3. **No IAM permissions** - Check that credentials have required CloudWatch permissions
@@ -171,18 +175,21 @@ docker logs cloudwatch-publisher
 ### No Logs Appearing in CloudWatch
 
 **Check container logs:**
-```bash
+
+```sh
 docker logs cloudwatch-publisher
 ```
 
 **Common causes:**
+
 1. **Wrong region** - Ensure you're checking CloudWatch in the correct AWS region
 2. **IAM permissions** - Verify credentials have `logs:CreateLogGroup`, `logs:CreateLogStream`, and `logs:PutLogEvents` permissions
 3. **Network issues** - Container needs internet access to reach AWS APIs
 4. **Credential expiry** - If using temporary credentials, they may have expired
 
 **View detailed AWS CLI errors:**
-```bash
+
+```sh
 docker logs cloudwatch-publisher 2>&1 | grep ERROR
 ```
 
@@ -190,7 +197,7 @@ docker logs cloudwatch-publisher 2>&1 | grep ERROR
 
 If you need to debug inside the container:
 
-```bash
+```sh
 docker run -it \
   -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
   -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
@@ -200,6 +207,7 @@ docker run -it \
 ```
 
 **Flag explanations:**
+
 - `-it` - Interactive mode with TTY (for shell access)
 - `--entrypoint /bin/bash` - Overrides the default entrypoint to give you a shell
 
@@ -218,11 +226,13 @@ This container runs as a non-root user (`appuser`) for security:
 ### Credential Handling
 
 **Do NOT:**
+
 - Hardcode credentials in the Dockerfile
 - Commit `.env` files with credentials to version control
 - Share credentials in logs or error messages
 
 **Do:**
+
 - Pass credentials via environment variables at runtime
 - Use IAM roles when running in AWS (ECS, EKS, EC2)
 - Rotate credentials regularly
@@ -231,6 +241,7 @@ This container runs as a non-root user (`appuser`) for security:
 ### IAM Permissions
 
 The required permissions are intentionally minimal:
+
 - `logs:CreateLogGroup` - Only for creating log groups
 - `logs:CreateLogStream` - Only for creating log streams
 - `logs:PutLogEvents` - Only for publishing log events
@@ -244,18 +255,21 @@ No permissions for reading, deleting, or managing other AWS resources.
 The main publishing script is located at `scripts/publish-log.sh`. After modifying:
 
 1. Rebuild the image:
-   ```bash
+
+   ```sh
    docker build -t cloudwatch-publisher .
    ```
 
 2. Stop the old container:
-   ```bash
+
+   ```sh
    docker stop cloudwatch-publisher
    docker rm cloudwatch-publisher
    ```
 
 3. Start a new container with the updated image:
-   ```bash
+
+   ```sh
    docker run -d \
      -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
      -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
@@ -268,7 +282,7 @@ The main publishing script is located at `scripts/publish-log.sh`. After modifyi
 
 The cron schedule is defined in `scripts/crontab`:
 
-```
+```sh
 */1 * * * * /scripts/publish-log.sh >> /proc/1/fd/1 2>> /proc/1/fd/2
 ```
 
@@ -284,7 +298,7 @@ After modifying the crontab file, rebuild and restart the container.
 
 You can test the publishing script without Docker:
 
-```bash
+```sh
 export AWS_ACCESS_KEY_ID=your_key
 export AWS_SECRET_ACCESS_KEY=your_secret
 export AWS_REGION=ap-southeast-2
@@ -296,7 +310,7 @@ export AWS_REGION=ap-southeast-2
 
 ## Architecture
 
-```
+```sh
 ┌─────────────────────────────────────┐
 │  Docker Container                   │
 │  ┌───────────────────────────────┐  │
@@ -307,14 +321,14 @@ export AWS_REGION=ap-southeast-2
 │  │  - Starts crond               │  │
 │  │  - Waits for signals          │  │
 │  └───────────────────────────────┘  │
-│              │                       │
-│              ▼                       │
+│              │                      │
+│              ▼                      │
 │  ┌───────────────────────────────┐  │
 │  │  crond (background)           │  │
 │  │  - Executes on schedule       │  │
 │  └───────────────────────────────┘  │
-│              │                       │
-│              ▼ (every minute)        │
+│              │                      │
+│              ▼ (every minute)       │
 │  ┌───────────────────────────────┐  │
 │  │  publish-log.sh               │  │
 │  │  - Creates log group/stream   │  │

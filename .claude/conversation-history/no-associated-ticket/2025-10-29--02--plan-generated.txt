@@ -1,7 +1,7 @@
 
  ▐▛███▜▌   Claude Code v2.0.28
 ▝▜█████▛▘  Sonnet 4.5 · Claude Pro
-  ▘▘ ▝▝    /Users/blaketaylor/Library/Code/monorepo-fem
+  ▘▘ ▝▝    <PROJECT_ROOT>/monorepo-fem
 
 > /clear 
   ⎿  (no content)
