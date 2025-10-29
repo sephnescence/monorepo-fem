@@ -21,7 +21,12 @@
     ".claude/conversation-history"
   ],
   "words": [
+    "addgroup",
+    "adduser",
+    "appgroup",
+    "appuser",
     "argh",
+    "dcron",
     "gonna",
     "gotta",
     "haha",
@@ -31,6 +36,7 @@
     "meh",
     "nope",
     "pipefail",
+    "proc",
     "sorta",
     "timezone",
     "wanna",

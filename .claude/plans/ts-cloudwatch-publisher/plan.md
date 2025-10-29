@@ -2,25 +2,25 @@
 
 ## Project Overview
 
-This plan details the implementation of a lean Docker container that publishes metrics to AWS CloudWatch every minute using bash. The solution prioritises simplicity, security, and operational reliability.
+This plan details the implementation of a lean Docker container that uses bash to publishes metrics to AWS CloudWatch at an interval defined in the environment variables (defaulting to one minute) using bash. The solution prioritises simplicity, security, and operational reliability.
 
 ## Architecture Decisions
 
 ### Why Docker?
 
-Docker provides a self-contained, reproducible environment that can run anywhere with minimal setup. The container will include all dependencies (AWS CLI, cron, bash scripts) and require only AWS credentials to function.
+Docker provides a self-contained, reproducible environment that can run anywhere with minimal setup. The container will include all dependencies (AWS CLI, cron, bash scripts) and require only AWS credentials to function, including the account id
 
 ### Why Bash?
 
-Bash is ubiquitous, lightweight, and perfect for simple orchestration tasks. While other languages could publish metrics, bash keeps dependencies minimal and the solution accessible to any engineer.
+Bash is ubiquitous, lightweight, and perfect for simple orchestration tasks. While other languages could publish metrics, bash keeps dependencies minimal and the solution accessible
 
-### Why CloudWatch over DataDog?
+### Why CloudWatch?
 
-Based on the branch name `ts-cloudwatch-publisher` and the excellence definition referencing CloudWatch specifically, this implementation targets AWS CloudWatch. The architecture can be adapted for DataDog or other monitoring platforms later.
+CloudWatch accepts JSON, and can be queried as if it were a NoSQL document. It means a separate database doesn't have to be set up while we're in the ideation phase. I'll accept the trade-off that querying could be slower
 
 ### Why Alpine Linux?
 
-Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size vs Ubuntu's ~70MB, it dramatically reduces image size, attack surface, and deployment time.
+Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size vs Ubuntu's ~70MB, it dramatically reduces image size, attack surface, and deployment time. Attack surface is not a true consideration for this service, as it will not be accessible via the internet, but it's a great concern to keep in mind. There's also less bloat, so we'll pay less for compute power and storage
 
 ## Implementation Checklist
 
@@ -74,17 +74,13 @@ mkdir -p scripts
 
 - Set strict error handling (`set -euo pipefail`)
 - Validate required environment variables
-- Generate meaningful metric value (e.g., random number, timestamp, constant)
 - Publish to CloudWatch using AWS CLI
-- Output structured logs with timestamp
-- Handle errors gracefully with retry logic
+- Output structured logs with service name, a message, and timestamp
+- Handle errors gracefully with retry logic and logging
 
 **Key Environment Variables:**
 
 - `AWS_REGION` - AWS region for CloudWatch (required)
-- `METRIC_NAMESPACE` - CloudWatch namespace (default: "CustomMetrics")
-- `METRIC_NAME` - Name of the metric (default: "TestMetric")
-- `METRIC_VALUE` - Value to publish (default: random 1-100)
 
 **Error Handling:**
 
@@ -113,7 +109,7 @@ mkdir -p scripts
 
 **Configuration:**
 
-```
+```sh
 */1 * * * * /scripts/publish-metric.sh >> /proc/1/fd/1 2>> /proc/1/fd/2
 ```
 
@@ -124,9 +120,6 @@ mkdir -p scripts
 - `/proc/1/fd/2` redirects stderr to container's main process
 - This ensures logs appear in `docker logs` output
 - No log files needed - all output goes to Docker's log driver
-
-**Alternative Considered:** Could use `while true; do ...; sleep 60; done` loop
-**Why Rejected:** Cron is more robust, handles scheduling edge cases, and is industry-standard for periodic tasks
 
 **Expected Outcome:** Crontab file ready to install in container
 
@@ -143,14 +136,12 @@ mkdir -p scripts
 - Validate required environment variables at startup
 - Install crontab configuration
 - Start cron daemon
-- Optionally run first metric publish immediately (for testing)
 - Keep container running by tailing cron logs
 - Handle SIGTERM gracefully for clean shutdown
 
 **Reasoning:**
 
 - Entrypoint validation fails fast if misconfigured
-- Immediate first publish enables quick verification
 - Tailing logs keeps container alive (PID 1 must not exit)
 - SIGTERM handling allows graceful shutdown in orchestrated environments
 
@@ -191,10 +182,7 @@ RUN chown -R appuser:appgroup /scripts
 USER appuser
 
 # Set default environment variables
-ENV AWS_REGION=ap-southeast-2 \
-    METRIC_NAMESPACE=CustomMetrics \
-    METRIC_NAME=TestMetric \
-    METRIC_UNIT=Count
+ENV AWS_REGION=$AWS_REGION
 
 # Container will run indefinitely
 ENTRYPOINT ["/scripts/entrypoint.sh"]
@@ -212,10 +200,6 @@ ENTRYPOINT ["/scripts/entrypoint.sh"]
 5. **Executable permissions:** Ensures scripts can run
 6. **Ownership change:** Non-root user must own files to execute them
 7. **USER directive:** All subsequent operations run as non-root
-8. **ENV defaults:** Sensible Australian region, clear naming
-
-**Alternative Considered:** AWS SDK for Python/Node.js
-**Why Rejected:** Adds 50-100MB of dependencies. AWS CLI is sufficient and much lighter.
 
 **Expected Image Size:** < 100MB (meets excellence criteria)
 
@@ -231,7 +215,7 @@ ENTRYPOINT ["/scripts/entrypoint.sh"]
 
 **Content:**
 
-```
+```sh
 README.md
 .git
 .gitignore
@@ -262,8 +246,9 @@ README.md
 2. **Prerequisites:**
    - Docker installed
    - AWS account with CloudWatch access
-   - AWS credentials (IAM role or access keys)
+   - AWS credentials (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
 3. **Required IAM Permissions:**
+
    ```json
    {
      "Version": "2012-10-17",
@@ -276,6 +261,7 @@ README.md
      ]
    }
    ```
+
 4. **Quick Start:**
 
    ```bash
@@ -298,6 +284,8 @@ README.md
 
 **CLI Command Examples:**
 
+This might cause issues. -d and -it are likely mutually exclusive. The plan said earlier that it intends to tail crontab to keep the container running. Double check this before continuing this step
+
 - Use `docker build`, not manual Dockerfile writing
 - Use `docker run`, explaining each flag:
   - `-d` runs detached (background)
@@ -308,117 +296,13 @@ README.md
 
 **Reasoning:**
 
-- Any engineer (even junior) should succeed on first try
-- Non-engineers should understand what's happening
+- Anyone, even a non-engineer should succeed on first try
+- Anyone should understand what's happening
 - Troubleshooting section prevents escalations
 - Security section builds security awareness
 - Examples show exact syntax, not pseudocode
 
 **Expected Outcome:** Documentation that enables independent usage
-
----
-
-### Step 8: Build and Test
-
-**Action:** Build the Docker image and verify it works
-
-**CLI Commands:**
-
-```bash
-# Build the image with a tag
-docker build -t cloudwatch-publisher:latest .
-
-# Verify image size (should be < 100MB)
-docker images cloudwatch-publisher:latest
-
-# Run with test credentials (use actual AWS credentials)
-docker run --rm -it \
-  -e AWS_ACCESS_KEY_ID=your_key \
-  -e AWS_SECRET_ACCESS_KEY=your_secret \
-  -e AWS_REGION=ap-southeast-2 \
-  -e METRIC_NAME=DockerTestMetric \
-  cloudwatch-publisher:latest
-
-# Check logs (in separate terminal)
-docker logs -f <container-id>
-
-# Run in background for long-term testing
-docker run -d \
-  --name cw-publisher \
-  -e AWS_ACCESS_KEY_ID=your_key \
-  -e AWS_SECRET_ACCESS_KEY=your_secret \
-  -e AWS_REGION=ap-southeast-2 \
-  cloudwatch-publisher:latest
-```
-
-**Verification Steps:**
-
-1. Container starts without errors
-2. Logs show successful metric publication
-3. CloudWatch console shows metrics within 2 minutes
-4. Container runs for at least 5 minutes without crashing
-5. Metrics appear every minute consistently
-
-**Reasoning:**
-
-- `--rm` for test runs prevents container accumulation
-- `-it` allows seeing immediate output for debugging
-- `-d` for long-term validation mimics production usage
-- `docker logs -f` enables real-time monitoring
-- Specific test metric name prevents confusion with production metrics
-
-**Expected Outcome:** Working container that publishes metrics reliably
-
----
-
-### Step 9: Testing Edge Cases
-
-**Action:** Verify error handling and edge cases
-
-**Test Cases:**
-
-1. **Missing AWS credentials:**
-
-   ```bash
-   docker run --rm cloudwatch-publisher:latest
-   # Expected: Clear error message, container exits with non-zero code
-   ```
-
-2. **Invalid AWS region:**
-
-   ```bash
-   docker run --rm \
-     -e AWS_REGION=invalid-region \
-     -e AWS_ACCESS_KEY_ID=test \
-     -e AWS_SECRET_ACCESS_KEY=test \
-     cloudwatch-publisher:latest
-   # Expected: Error message about invalid region
-   ```
-
-3. **Network issues:**
-
-   ```bash
-   docker run --rm --network none \
-     -e AWS_ACCESS_KEY_ID=test \
-     -e AWS_SECRET_ACCESS_KEY=test \
-     cloudwatch-publisher:latest
-   # Expected: Retry logic activates, eventual failure with clear message
-   ```
-
-4. **Graceful shutdown:**
-   ```bash
-   docker stop cw-publisher
-   # Expected: Container stops within 10 seconds, clean logs
-   ```
-
-**Reasoning:**
-
-- Edge case testing ensures production reliability
-- Clear error messages enable self-service troubleshooting
-- Graceful shutdown is critical for orchestrated environments
-- Network failure simulation validates retry logic
-
-**Expected Outcome:** All edge cases handled predictably with clear feedback
 
 ---
 
@@ -515,7 +399,7 @@ docker run -d \
 
 ## Execution Order
 
-Execute steps sequentially from 1-9. Each step builds on previous steps. Do not skip verification steps.
+Execute steps sequentially from 1-7. Each step builds on previous steps. Do not skip verification steps.
 
 ## Notes for Implementation
 
@@ -524,14 +408,5 @@ Execute steps sequentially from 1-9. Each step builds on previous steps. Do not 
 - Test each script independently before Docker integration
 - Verify AWS credentials work before blaming the code
 - Check CloudWatch console in correct region
-
-## Adaptation for DataDog (Future)
-
-While this plan targets CloudWatch, the architecture supports easy adaptation:
-
-- Replace `aws-cli` with `curl` (DataDog HTTP API)
-- Change metric publishing endpoint
-- Update environment variables for DataDog API key
-- Core structure (Alpine, cron, bash, non-root) remains identical
 
 This demonstrates the value of simple, well-documented solutions.
