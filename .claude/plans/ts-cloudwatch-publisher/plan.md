@@ -11,30 +11,6 @@
 
 ## Detailed Implementation Steps
 
-### Step 4: Create Container Entrypoint Script
-
-**Action:** Create entrypoint script that starts cron and keeps container running
-
-**File:** `scripts/entrypoint.sh`
-
-**Script Requirements:**
-
-- Validate required environment variables at startup
-- Install crontab configuration
-- Start cron daemon
-- Keep container running by tailing cron logs
-- Handle SIGTERM gracefully for clean shutdown
-
-**Reasoning:**
-
-- Entrypoint validation fails fast if misconfigured
-- Tailing logs keeps container alive (PID 1 must not exit)
-- SIGTERM handling allows graceful shutdown in orchestrated environments
-
-**Expected Outcome:** Executable script that properly initialises and runs the container
-
----
-
 ### Step 5: Create Dockerfile
 
 **Action:** Create optimised Dockerfile using Alpine Linux
@@ -285,7 +261,7 @@ This might cause issues. -d and -it are likely mutually exclusive. The plan said
 
 ## Execution Order
 
-Execute steps sequentially from 4-7. Each step builds on previous steps. Do not skip verification steps.
+Execute steps sequentially from 5-7. Each step builds on previous steps. Do not skip verification steps.
 
 ## Notes for Implementation
 

@@ -49,3 +49,7 @@ I'd like to play around with that later
             --timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     }
     ``
+
+## Step 4 - There are now duplicated commands for log and log_error
+
+Perhaps I would prefer to get it to run ts so that I can have a helper package that references a consistent log and log_error
