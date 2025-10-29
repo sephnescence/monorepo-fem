@@ -37,33 +37,6 @@ Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size v
 
 ## Detailed Implementation Steps
 
-### Step 1: Project Structure Setup
-
-**Action:** Create directory structure for the CloudWatch publisher
-
-**CLI Commands:**
-
-```bash
-# Create the project directory
-mkdir -p packages/cloudwatch-publisher
-
-# Navigate to it
-cd packages/cloudwatch-publisher
-
-# Create subdirectories for organisation
-mkdir -p scripts
-```
-
-**Reasoning:**
-
-- `packages/` follows monorepo convention
-- Separate `scripts/` directory keeps Dockerfile clean and scripts reusable
-- Explicit directory creation ensures consistent structure
-
-**Expected Outcome:** Directory structure exists and is ready for files
-
----
-
 ### Step 2: Create the Metric Publishing Script
 
 **Action:** Create the bash script that publishes metrics to CloudWatch
@@ -399,7 +372,7 @@ This might cause issues. -d and -it are likely mutually exclusive. The plan said
 
 ## Execution Order
 
-Execute steps sequentially from 1-7. Each step builds on previous steps. Do not skip verification steps.
+Execute steps sequentially from 2-7. Each step builds on previous steps. Do not skip verification steps.
 
 ## Notes for Implementation
 
