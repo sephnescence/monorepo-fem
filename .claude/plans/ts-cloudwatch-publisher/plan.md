@@ -1,33 +1,7 @@
 # CloudWatch Publisher Docker Image - Implementation Plan
 
-## Project Overview
-
-This plan details the implementation of a lean Docker container that uses bash to publishes metrics to AWS CloudWatch at an interval defined in the environment variables (defaulting to one minute) using bash. The solution prioritises simplicity, security, and operational reliability.
-
-## Architecture Decisions
-
-### Why Docker?
-
-Docker provides a self-contained, reproducible environment that can run anywhere with minimal setup. The container will include all dependencies (AWS CLI, cron, bash scripts) and require only AWS credentials to function, including the account id
-
-### Why Bash?
-
-Bash is ubiquitous, lightweight, and perfect for simple orchestration tasks. While other languages could publish metrics, bash keeps dependencies minimal and the solution accessible
-
-### Why CloudWatch?
-
-CloudWatch accepts JSON, and can be queried as if it were a NoSQL document. It means a separate database doesn't have to be set up while we're in the ideation phase. I'll accept the trade-off that querying could be slower
-
-### Why Alpine Linux?
-
-Alpine Linux is industry-standard for minimal Docker images. At ~5MB base size vs Ubuntu's ~70MB, it dramatically reduces image size, attack surface, and deployment time. Attack surface is not a true consideration for this service, as it will not be accessible via the internet, but it's a great concern to keep in mind. There's also less bloat, so we'll pay less for compute power and storage
-
 ## Implementation Checklist
 
-- [ ] Create project directory structure
-- [ ] Create Dockerfile with Alpine base
-- [ ] Create bash script for publishing logs
-- [ ] Create cron configuration
 - [ ] Create entrypoint script
 - [ ] Create .dockerignore file
 - [ ] Create comprehensive README with CLI instructions
@@ -311,7 +285,7 @@ This might cause issues. -d and -it are likely mutually exclusive. The plan said
 
 ## Execution Order
 
-Execute steps sequentially from 2-7. Each step builds on previous steps. Do not skip verification steps.
+Execute steps sequentially from 4-7. Each step builds on previous steps. Do not skip verification steps.
 
 ## Notes for Implementation
 
