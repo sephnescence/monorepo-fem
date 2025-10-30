@@ -15,5 +15,7 @@ Please create ONLY a definition of excellence in .claude/plans/ts-cloudwatch-pub
 Ensure the definition of excellence is something that you will understand, as you will be referring to it regularly. When you're happy with your definition of excellence, I will review it and add additional information
 
 I might need help setting up the cron equivalent in Lambda. To my understanding, I require Event Bridge to regularly run Lambdas, but if there's a way to configure SAM that doesn't involve this, that would be great. Good Luck!
+
+If you have any follow up concerns, please ask me!
 </task>
 ```
