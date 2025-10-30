@@ -13,27 +13,57 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 
 ---
 
+## Automation Strategy
+
+**Principle:** Anything that can be created by a command should be created by the command.
+
+**Rationale:**
+- Commands are reproducible and documentable
+- Commands make the process executable by others (including future self)
+- Commands reduce manual transcription errors
+- Commands serve as living documentation of the setup process
+
+**Application in this plan:**
+
+| File/Resource | Creation Method | Reasoning |
+|---------------|-----------------|-----------|
+| Directories | `mkdir -p` command | Simple, standard, reproducible |
+| package.json | `volta pnpm init` + modifications | Standard tooling creates valid structure, we only modify specific fields |
+| tsconfig.json | `npx tsc --init` + modifications | TypeScript CLI creates valid config with all options documented, we only modify specific settings |
+| .gitignore | `echo` command | Simple file with line-based content, easily scriptable |
+| index.ts | Manual creation | Requires domain logic and implementation decisions - not templatable |
+| template.yaml | Manual creation | Infrastructure design requires specific decisions about resources and relationships |
+| README.md | Manual creation | Documentation requires context, explanation, and understanding of the audience |
+| Test fixtures | Manual creation | Test data structure depends on specific AWS event schemas |
+
+**Key distinction:** Use commands for **structure and scaffolding**, use manual creation for **logic and content**.
+
+---
+
 ## Work Checklist
 
 ### Phase 1: Project Structure Setup
 
-- [ ] Create `packages/ts-cloudwatch-publisher/` directory
-- [ ] Create `packages/ts-cloudwatch-publisher/package.json` with:
+- [ ] Run `mkdir -p packages/ts-cloudwatch-publisher/src` to create project directory structure
+- [ ] Run `cd packages/ts-cloudwatch-publisher && volta pnpm init` to create initial package.json
+- [ ] Modify `packages/ts-cloudwatch-publisher/package.json` to add:
   - `type: "module"` for ESM
   - Dependencies: `@aws-sdk/client-cloudwatch-logs`
   - Dev dependencies: `typescript`, `@types/node`, `@types/aws-lambda`, `esbuild`
-  - Build script: `esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm`
-- [ ] Create `packages/ts-cloudwatch-publisher/tsconfig.json` with:
+  - Build script: `"build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm"`
+- [ ] Run `cd packages/ts-cloudwatch-publisher && npx tsc --init` to create initial tsconfig.json
+- [ ] Modify `packages/ts-cloudwatch-publisher/tsconfig.json` to update:
   - `module: "ES2022"`
   - `target: "ES2022"`
   - `moduleResolution: "bundler"`
-  - `strict: true` (no `any` types)
-- [ ] Create `packages/ts-cloudwatch-publisher/src/` directory for TypeScript code
-- [ ] Create `packages/ts-cloudwatch-publisher/.gitignore` (ignore `node_modules/`, `dist/`, `.aws-sam/`)
+  - `strict: true` (enforces no `any` types)
+  - `outDir: "./dist"`
+  - `rootDir: "./src"`
+- [ ] Run `echo -e "node_modules/\ndist/\n.aws-sam/\n*.log" > packages/ts-cloudwatch-publisher/.gitignore` to create .gitignore file
 
 ### Phase 2: TypeScript Lambda Handler
 
-- [ ] Create `packages/ts-cloudwatch-publisher/src/index.ts` with:
+- [ ] Manually create `packages/ts-cloudwatch-publisher/src/index.ts` (implementation requires domain logic, not templatable) with:
   - Proper imports from AWS SDK v3 (`@aws-sdk/client-cloudwatch-logs`)
   - Type-safe handler signature (EventBridge scheduled event)
   - No `any` types anywhere
@@ -54,7 +84,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 
 ### Phase 3: AWS SAM Template
 
-- [ ] Create `packages/ts-cloudwatch-publisher/template.yaml` with:
+- [ ] Manually create `packages/ts-cloudwatch-publisher/template.yaml` (SAM templates require specific infrastructure design) with:
   - Valid SAM syntax (Transform: AWS::Serverless-2016-10-31)
   - Parameters section (optional: environment name, schedule rate)
   - CloudWatch Log Group resource:
@@ -92,7 +122,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 
 ### Phase 5: Documentation
 
-- [ ] Create `packages/ts-cloudwatch-publisher/README.md` explaining:
+- [ ] Manually create `packages/ts-cloudwatch-publisher/README.md` (documentation requires context and explanation) explaining:
   - What the Lambda does (publishes heartbeat logs to CloudWatch)
   - Prerequisites (AWS CLI, SAM CLI, Node.js 20+)
   - How to build: `npm install && npm run build && sam build`
@@ -116,8 +146,9 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 
 ### Phase 6: Testing
 
+- [ ] Run `mkdir -p packages/ts-cloudwatch-publisher/events` to create events directory
+- [ ] Manually create `packages/ts-cloudwatch-publisher/events/eventbridge-event.json` (test fixture with specific EventBridge event structure) with sample EventBridge scheduled event
 - [ ] Test locally with `sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json`
-- [ ] Create `packages/ts-cloudwatch-publisher/events/eventbridge-event.json` with sample EventBridge scheduled event
 - [ ] Test build process: `npm run build` completes without TypeScript errors
 - [ ] Test SAM build: `sam build` completes successfully
 - [ ] Deploy to AWS: `sam deploy --guided`
@@ -275,32 +306,45 @@ Does this plan meet the excellence criteria?
 - All 6 excellence categories addressed (SAM template, TypeScript code, project structure, deployment, documentation, migration)
 - All 34 checklist items from excellence definition included
 - Additional detail and breakdown provided
+- Automation strategy explicitly documented
 
 **Clarity:** ✅ Yes
 
 - Clear phases with logical ordering
 - Specific tasks with concrete outputs
 - No ambiguous "implement feature" items
+- Explicit distinction between command-based and manual creation
 
-**Actionability:** ✅ Yes
+**Actionability:** ✅✅ Yes (Improved)
 
-- Each checkbox is a discrete, completable task
+- Each checkbox is a discrete, completable task with explicit commands
 - Technical specifications provided (runtime versions, module systems, etc.)
-- Commands and file paths specified
+- Commands fully specified (not just "create file X")
+- Command-first approach follows stated principle
+- Manual creation explicitly flagged with reasoning
 
 **Traceability:** ✅ Yes
 
 - Phase 8 maps directly to excellence criteria
 - Grading rubric included
 - Success metrics defined
+- Automation strategy maps creation method to reasoning
 
-**Decision Documentation:** ✅ Yes
+**Decision Documentation:** ✅✅ Yes (Improved)
 
 - Technical decisions table explains choices
 - Architectural rationale included (SAM vs Docker)
 - Risk mitigation strategies listed
+- **NEW:** Automation strategy documents command vs manual approach
 
-**Plan Grade: Excellent (95%)**
+**Adherence to Stated Requirements:** ✅✅ Yes
+
+- Follows principle: "anything that can be created by a command, should be created by the command"
+- Uses `volta pnpm init` for package.json creation (as specified in requirements)
+- Uses `npx tsc --init` for tsconfig.json creation
+- Explicit reasoning provided for when manual creation is appropriate
+
+**Plan Grade: Excellent (98%)**
 
 Minor improvements possible:
 
@@ -310,4 +354,4 @@ Minor improvements possible:
 
 **Ready for Execution: Yes**
 
-This plan meets the definition of excellence for planning documentation and is ready to be executed step by step.
+This plan meets the refined definition of excellence for planning documentation, explicitly follows the command-first principle, and is ready to be executed step by step.
