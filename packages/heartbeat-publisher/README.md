@@ -1,4 +1,4 @@
-# TypeScript CloudWatch Publisher
+# Heartbeat Publisher
 
 AWS Lambda function that publishes heartbeat logs to CloudWatch Logs on a scheduled basis using EventBridge.
 
@@ -45,7 +45,7 @@ This Lambda function:
 ## Project Structure
 
 ```sh
-ts-cloudwatch-publisher/
+heartbeat-publisher/
 ├── src/
 │   └── index.ts              # Lambda handler implementation
 ├── events/
@@ -100,7 +100,7 @@ sam deploy --guided
 
 You'll be prompted for:
 
-- **Stack Name**: e.g., `ts-cloudwatch-publisher-dev`
+- **Stack Name**: e.g., `heartbeat-publisher-dev`
 - **AWS Region**: e.g., `ap-southeast-2`
 - **Environment**: `dev`, `staging`, or `prod`
 - **ScheduleRate**: e.g., `rate(1 minute)`
@@ -146,7 +146,7 @@ This SAM template creates the following AWS resources:
 
 4. **Lambda Execution Log Group** (`LambdaLogGroup`)
 
-   - Name: `/aws/lambda/ts-cloudwatch-publisher-{Environment}`
+   - Name: `/aws/lambda/heartbeat-publisher-{Environment}`
    - Retention: 7 days
    - For monitoring the Lambda's own execution
 
@@ -163,7 +163,7 @@ This SAM template creates the following AWS resources:
 View the Lambda's own logs to see if it's executing successfully:
 
 ```sh
-aws logs tail /aws/lambda/ts-cloudwatch-publisher-dev --follow
+aws logs tail /aws/lambda/heartbeat-publisher-dev --follow
 ```
 
 You should see log entries showing:
@@ -187,7 +187,7 @@ You should see structured JSON log entries:
 {
   "message": "heartbeat",
   "timestamp": "2024-01-15T12:00:00.000Z",
-  "source": "ts-cloudwatch-publisher",
+  "source": "heartbeat-publisher",
   "type": "heartbeat"
 }
 ```
@@ -197,7 +197,7 @@ You should see structured JSON log entries:
 Check that the schedule rule is enabled:
 
 ```sh
-aws events describe-rule --name ts-cloudwatch-publisher-schedule-dev
+aws events describe-rule --name heartbeat-publisher-schedule-dev
 ```
 
 Look for `"State": "ENABLED"` in the output.
@@ -345,7 +345,7 @@ If the error persists, verify that:
 
 ### Log group not deleted when stack is deleted
 
-If `/aws/lambda/ts-cloudwatch-publisher-{Environment}` remains after running `sam delete`, it's because AWS Lambda auto-created the log group before CloudFormation could manage it.
+If `/aws/lambda/heartbeat-publisher-{Environment}` remains after running `sam delete`, it's because AWS Lambda auto-created the log group before CloudFormation could manage it.
 
 **Solution**: The `template.yaml` now explicitly creates the log group BEFORE the Lambda function:
 
@@ -354,7 +354,7 @@ LambdaLogGroup:
   Type: AWS::Logs::LogGroup
   DeletionPolicy: Delete
   Properties:
-    LogGroupName: !Sub /aws/lambda/ts-cloudwatch-publisher-${Environment}
+    LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
 
 CloudWatchPublisherFunction:
   Type: AWS::Serverless::Function
@@ -368,7 +368,7 @@ This ensures CloudFormation "owns" the log group and can delete it properly when
 1. Check IAM permissions:
 
    ```sh
-   aws iam get-role-policy --role-name ts-cloudwatch-publisher-dev-CloudWatchPublisherFunctionRole-XXXXX --policy-name CloudWatchPublisherFunctionRolePolicy
+   aws iam get-role-policy --role-name heartbeat-publisher-dev-CloudWatchPublisherFunctionRole-XXXXX --policy-name CloudWatchPublisherFunctionRolePolicy
    ```
 
 2. Verify log group exists:
@@ -380,7 +380,7 @@ This ensures CloudFormation "owns" the log group and can delete it properly when
 3. Check Lambda environment variables:
 
    ```sh
-   aws lambda get-function-configuration --function-name ts-cloudwatch-publisher-dev
+   aws lambda get-function-configuration --function-name heartbeat-publisher-dev
    ```
 
 ### Lambda not executing on schedule
@@ -388,13 +388,13 @@ This ensures CloudFormation "owns" the log group and can delete it properly when
 1. Check EventBridge rule is enabled:
 
    ```sh
-   aws events describe-rule --name ts-cloudwatch-publisher-schedule-dev
+   aws events describe-rule --name heartbeat-publisher-schedule-dev
    ```
 
 2. Check rule has a target:
 
    ```sh
-   aws events list-targets-by-rule --rule ts-cloudwatch-publisher-schedule-dev
+   aws events list-targets-by-rule --rule heartbeat-publisher-schedule-dev
    ```
 
 ### Build failures

@@ -7,7 +7,7 @@
   "time": "2024-01-15T12:00:00Z",
   "region": "us-east-1",
   "resources": [
-    "arn:aws:events:us-east-1:123456789012:rule/ts-cloudwatch-publisher-schedule-dev"
+    "arn:aws:events:us-east-1:123456789012:rule/heartbeat-publisher-schedule-dev"
   ],
   "detail": {}
 }

@@ -1,5 +1,5 @@
 {
-  "name": "ts-cloudwatch-publisher",
+  "name": "heartbeat-publisher",
   "version": "0.0.1",
   "private": true,
   "description": "AWS Lambda function that publishes heartbeat logs to CloudWatch",

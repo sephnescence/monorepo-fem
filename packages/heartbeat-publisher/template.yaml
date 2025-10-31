@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: TS Lambda publishes heartbeats to CloudWatch Logs every minute via EventBridge
+Description: Heartbeat publisher Lambda that publishes heartbeats to CloudWatch Logs every minute via EventBridge
 
 Parameters:
   Environment:
@@ -38,14 +38,14 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: !Sub /aws/lambda/ts-heartbeat-publisher-${Environment}
+      LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
       RetentionInDays: 7
 
   # Lambda Function that publishes logs
   HeartbeatPublisherFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub ts-heartbeat-publisher-${Environment}
+      FunctionName: !Sub heartbeat-publisher-${Environment}
       Description: Publishes heartbeat logs to CloudWatch on a schedule
       CodeUri: dist/
       Handler: index.handler
@@ -67,6 +67,6 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(1 minute)
-            Name: !Sub ts-heartbeat-publisher-schedule-${Environment}
+            Name: !Sub heartbeat-publisher-schedule-${Environment}
             Description: Triggers Heartbeat Publisher every minute
             Enabled: true

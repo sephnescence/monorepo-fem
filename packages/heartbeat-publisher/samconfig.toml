@@ -5,9 +5,9 @@ cached = true
 parallel = true
 
 [default.deploy.parameters]
-stack_name = "ts-cloudwatch-publisher-dev"
+stack_name = "heartbeat-publisher-dev"
 resolve_s3 = true
-s3_prefix = "ts-cloudwatch-publisher-dev"
+s3_prefix = "heartbeat-publisher-dev"
 region = "ap-southeast-2"
 capabilities = "CAPABILITY_IAM"
 parameter_overrides = "Environment=\"dev\""

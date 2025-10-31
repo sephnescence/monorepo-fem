@@ -88,7 +88,7 @@ async function publishHeartbeatLog(
   const logEvent = {
     message: 'heartbeat',
     timestamp: new Date(timestamp).toISOString(),
-    source: 'ts-cloudwatch-publisher',
+    source: 'heartbeat-publisher',
     type: 'heartbeat',
   };
 
