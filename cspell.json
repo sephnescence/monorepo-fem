@@ -18,7 +18,8 @@
     ".git",
     "*.min.js",
     "*.css",
-    ".claude/conversation-history"
+    ".claude/conversation-history",
+    "**/.gitignore"
   ],
   "words": [
     "addgroup",
