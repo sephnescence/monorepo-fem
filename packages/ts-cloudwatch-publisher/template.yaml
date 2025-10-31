@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TS Lambda publishes heartbeats to CloudWatch Logs every minute via EventBridge
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    Description: Environment name
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+
+  ScheduleRate:
+    Type: String
+    Default: "rate(1 minute)"
+    Description: EventBridge schedule expression
+
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    Description: Number of days to retain logs
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+
+Resources:
+  # CloudWatch Log Group where heartbeat logs will be published
+  HeartbeatLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /monorepo-fem/ts-heartbeat-${Environment}
+      RetentionInDays: !Ref LogRetentionDays
+
+  # Lambda Function that publishes logs
+  CloudWatchPublisherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ts-cloudwatch-publisher-${Environment}
+      Description: Publishes heartbeat logs to CloudWatch on a schedule
+      CodeUri: .
+      Handler: dist/index.handler
+      Environment:
+        Variables:
+          LOG_GROUP_NAME: !Ref HeartbeatLogGroup
+          LOG_STREAM_PREFIX: heartbeat
+          NODE_ENV: !Ref Environment
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !GetAtt HeartbeatLogGroup.Arn
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleRate
+            Name: !Sub ts-cloudwatch-publisher-schedule-${Environment}
+            Description: Triggers the CloudWatch publisher Lambda on a schedule
+            Enabled: true
+
+  # Lambda's own execution log group (for monitoring the Lambda itself)
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/ts-cloudwatch-publisher-${Environment}
+      RetentionInDays: 7
+
+Outputs:
+  CloudWatchPublisherFunctionArn:
+    Description: ARN of the CloudWatch Publisher Lambda function
+    Value: !GetAtt CloudWatchPublisherFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-FunctionArn
+
+  HeartbeatLogGroupName:
+    Description: Name of the CloudWatch log group where heartbeats are published
+    Value: !Ref HeartbeatLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-HeartbeatLogGroup
+
+  ScheduleRuleArn:
+    Description: ARN of the EventBridge schedule rule
+    Value: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/ts-cloudwatch-publisher-schedule-${Environment}
+
+  LambdaLogGroupName:
+    Description: Name of the Lambda execution log group
+    Value: !Ref LambdaLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-LambdaLogGroup

@@ -29,6 +29,7 @@
     "cleanup",
     "crond",
     "dcron",
+    "documentable",
     "eventbridge",
     "gonna",
     "gotta",
@@ -41,6 +42,7 @@
     "pipefail",
     "proc",
     "sorta",
+    "templatable",
     "timezone",
     "wanna",
     "yep"

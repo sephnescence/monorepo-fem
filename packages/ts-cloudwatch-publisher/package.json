@@ -1,0 +1,24 @@
+{
+  "name": "ts-cloudwatch-publisher",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AWS Lambda function that publishes heartbeat logs to CloudWatch",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -color run -r build",
+    "lint": "pnpm -color run -r lint",
+    "test": "pnpm -color run -r test",
+    "deleted-later-dev": "pnpm -color run -r dev",
+    "format": "pnpm -color run -r format",
+    "check": "pnpm -color run -r check"
+  },
+  "types": "dist/index.d.ts",
+  "module": "dist/index.js",
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.921.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "typescript": "^5.7.3"
+  }
+}

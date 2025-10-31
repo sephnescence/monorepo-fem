@@ -1,0 +1,17 @@
+{
+  "name": "monorepo-fem",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Monorepo FEM",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "sanitise": "./scripts/sanitise-conversation.sh .claude/conversation-history"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "lerna": "^9.0.0"
+  }
+}

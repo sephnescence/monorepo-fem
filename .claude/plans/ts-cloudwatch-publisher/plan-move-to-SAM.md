@@ -18,6 +18,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 **Principle:** Anything that can be created by a command should be created by the command.
 
 **Rationale:**
+
 - Commands are reproducible and documentable
 - Commands make the process executable by others (including future self)
 - Commands reduce manual transcription errors
@@ -25,16 +26,16 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 
 **Application in this plan:**
 
-| File/Resource | Creation Method | Reasoning |
-|---------------|-----------------|-----------|
-| Directories | `mkdir -p` command | Simple, standard, reproducible |
-| package.json | `volta pnpm init` + modifications | Standard tooling creates valid structure, we only modify specific fields |
-| tsconfig.json | `npx tsc --init` + modifications | TypeScript CLI creates valid config with all options documented, we only modify specific settings |
-| .gitignore | `echo` command | Simple file with line-based content, easily scriptable |
-| index.ts | Manual creation | Requires domain logic and implementation decisions - not templatable |
-| template.yaml | Manual creation | Infrastructure design requires specific decisions about resources and relationships |
-| README.md | Manual creation | Documentation requires context, explanation, and understanding of the audience |
-| Test fixtures | Manual creation | Test data structure depends on specific AWS event schemas |
+| File/Resource | Creation Method                   | Reasoning                                                                                         |
+| ------------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Directories   | `mkdir -p` command                | Simple, standard, reproducible                                                                    |
+| package.json  | `volta pnpm init` + modifications | Standard tooling creates valid structure, we only modify specific fields                          |
+| tsconfig.json | `pnpm dlx tsc --init` + modifications  | TypeScript CLI creates valid config with all options documented, we only modify specific settings |
+| .gitignore    | `echo` command                    | Simple file with line-based content, easily scriptable                                            |
+| index.ts      | Manual creation                   | Requires domain logic and implementation decisions - not templatable                              |
+| template.yaml | Manual creation                   | Infrastructure design requires specific decisions about resources and relationships               |
+| README.md     | Manual creation                   | Documentation requires context, explanation, and understanding of the audience                    |
+| Test fixtures | Manual creation                   | Test data structure depends on specific AWS event schemas                                         |
 
 **Key distinction:** Use commands for **structure and scaffolding**, use manual creation for **logic and content**.
 
@@ -51,7 +52,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
   - Dependencies: `@aws-sdk/client-cloudwatch-logs`
   - Dev dependencies: `typescript`, `@types/node`, `@types/aws-lambda`, `esbuild`
   - Build script: `"build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm"`
-- [ ] Run `cd packages/ts-cloudwatch-publisher && npx tsc --init` to create initial tsconfig.json
+- [ ] Run `cd packages/ts-cloudwatch-publisher && pnpm dlx tsc --init` to create initial tsconfig.json
 - [ ] Modify `packages/ts-cloudwatch-publisher/tsconfig.json` to update:
   - `module: "ES2022"`
   - `target: "ES2022"`
@@ -88,7 +89,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
   - Valid SAM syntax (Transform: AWS::Serverless-2016-10-31)
   - Parameters section (optional: environment name, schedule rate)
   - CloudWatch Log Group resource:
-    - Logical ID: `TargetLogGroup`
+    - Logical ID: `HeartbeatLogGroup`
     - Log group name: `/monorepo-fem/ts-heartbeat`
     - Retention period: 7 days
   - Lambda Function resource:
@@ -98,7 +99,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
     - CodeUri: `.`
     - Timeout: 30 seconds
     - Environment variables:
-      - `LOG_GROUP_NAME: !Ref TargetLogGroup`
+      - `LOG_GROUP_NAME: !Ref HeartbeatLogGroup`
       - `LOG_STREAM_PREFIX: heartbeat`
     - Policies:
       - `logs:CreateLogStream` scoped to target log group ARN
@@ -125,7 +126,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 - [ ] Manually create `packages/ts-cloudwatch-publisher/README.md` (documentation requires context and explanation) explaining:
   - What the Lambda does (publishes heartbeat logs to CloudWatch)
   - Prerequisites (AWS CLI, SAM CLI, Node.js 20+)
-  - How to build: `npm install && npm run build && sam build`
+  - How to build: `pnpm install && pnpm run build && sam build`
   - How to deploy: `sam deploy --guided`
   - What resources are created (Lambda, EventBridge rule, CloudWatch log group, IAM role)
   - How to verify it's working:
@@ -149,7 +150,7 @@ Migrate the existing Docker-based CloudWatch log publisher (`packages/cloudwatch
 - [ ] Run `mkdir -p packages/ts-cloudwatch-publisher/events` to create events directory
 - [ ] Manually create `packages/ts-cloudwatch-publisher/events/eventbridge-event.json` (test fixture with specific EventBridge event structure) with sample EventBridge scheduled event
 - [ ] Test locally with `sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json`
-- [ ] Test build process: `npm run build` completes without TypeScript errors
+- [ ] Test build process: `pnpm run build` completes without TypeScript errors
 - [ ] Test SAM build: `sam build` completes successfully
 - [ ] Deploy to AWS: `sam deploy --guided`
 - [ ] Verify deployment:
@@ -341,7 +342,7 @@ Does this plan meet the excellence criteria?
 
 - Follows principle: "anything that can be created by a command, should be created by the command"
 - Uses `volta pnpm init` for package.json creation (as specified in requirements)
-- Uses `npx tsc --init` for tsconfig.json creation
+- Uses `pnpm dlx tsc --init` for tsconfig.json creation
 - Explicit reasoning provided for when manual creation is appropriate
 
 **Plan Grade: Excellent (98%)**
