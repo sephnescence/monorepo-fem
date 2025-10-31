@@ -1,8 +1,3 @@
-# Grabbing from https://github.com/mike-north/ts-monorepos-v2/blob/steps-2/.gitignore
-# I know I don't have nx installed just yet, though
-
-.vscode/settings.json
-
 # Logs
 logs
 *.log
@@ -23,7 +18,6 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
@@ -39,3 +33,26 @@ coverage
 .github/instructions/nx.instructions.md
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
+
+# MacOS
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
