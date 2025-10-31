@@ -67,27 +67,34 @@ ts-cloudwatch-publisher/
    pnpm install
    ```
 
-2. **Build TypeScript code:**
+2. **Build the Lambda function:**
 
    ```sh
    pnpm run build
    ```
 
-   This uses esbuild to bundle the TypeScript code into an ESM module at `dist/index.mjs`.
+   This runs `esbuild.config.js` which:
+   - Compiles TypeScript to JavaScript
+   - Bundles all dependencies
+   - Outputs to `dist/index.mjs` (ESM format)
+   - Adds CommonJS require shim for AWS SDK compatibility
 
-3. **Build SAM package:**
+3. **Verify the build output:**
 
    ```sh
-   sam build
+   ls -lh dist/
+   node dist/index.mjs  # Test the built code directly (requires AWS credentials)
    ```
 
-   This prepares the Lambda deployment package with dependencies.
-
 ## How to Deploy
+
+**IMPORTANT**: Always run `pnpm run build` before deploying. SAM will package the pre-built code from `dist/`.
 
 ### First-Time Deployment (Guided)
 
 ```sh
+pnpm run build  # Build first!
+sam build       # Package the built code
 sam deploy --guided
 ```
 
@@ -104,10 +111,12 @@ You'll be prompted for:
 
 ### Subsequent Deployments
 
-After the first deployment, simply run:
+After the first deployment, run:
 
 ```sh
-sam deploy
+pnpm run build  # Build first!
+sam build       # Package the built code
+sam deploy      # Deploy using samconfig.toml
 ```
 
 Parameters will be read from `samconfig.toml`.
@@ -278,6 +287,17 @@ This project uses AWS SDK v3 (`@aws-sdk/client-cloudwatch-logs`):
 
 ### Build Tool: esbuild
 
+**Why explicit `esbuild.config.js` instead of SAM's built-in esbuild?**
+
+- **Testability**: Can verify the build works before SAM packaging
+- **Debuggability**: Full control over esbuild configuration, easier to troubleshoot failures
+- **Independence**: Build failures are separate from packaging failures
+- **Observability**: Can inspect `dist/` output directly, add build-time checks
+- **No black box**: You own the config, no mysterious SAM wrapper layer
+
+Trade-off: One extra step (`pnpm run build`), but worth it for maintainability and clarity.
+
+Benefits of esbuild itself:
 - Fast compilation (sub-second builds)
 - Built-in bundling and minification
 - Handles TypeScript, ESM, and dependencies out of the box
@@ -306,21 +326,22 @@ If you see this error in the Lambda execution logs, it means the Lambda code was
 - The Lambda is using ES modules but dependencies have CommonJS-style dynamic requires
 - esbuild isn't configured to bundle dependencies correctly
 
-**Solution**: The `template.yaml` now includes proper esbuild configuration:
+**Solution**: The `esbuild.config.js` includes a Banner configuration:
 
-```yaml
-Metadata:
-  BuildMethod: esbuild
-  BuildProperties:
-    Format: esm                    # Preserves ES module syntax
-    Target: es2022                 # Matches Node.js 20 runtime
-    Banner:                        # Creates require shim for dependencies
-      js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
-    EntryPoints:
-      - src/index.ts
+```javascript
+banner: {
+  // Create a CommonJS-style require() function in ESM context
+  // This allows AWS SDK and other dependencies to use dynamic requires
+  js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+}
 ```
 
-The `Banner` creates a CommonJS-style `require` function in the ESM context, allowing any dependencies that use dynamic requires to work correctly.
+The Banner creates a CommonJS-style `require` function in the ESM context, allowing any dependencies that use dynamic requires to work correctly.
+
+If the error persists, verify that:
+1. You ran `pnpm run build` before deploying
+2. The `dist/index.mjs` file exists and contains the banner at the top
+3. You ran `sam build` after building (to package the dist/ folder)
 
 ### Log group not deleted when stack is deleted
 
@@ -337,7 +358,7 @@ LambdaLogGroup:
 
 CloudWatchPublisherFunction:
   Type: AWS::Serverless::Function
-  DependsOn: LambdaLogGroup    # Ensures log group exists first
+  DependsOn: LambdaLogGroup # Ensures log group exists first
 ```
 
 This ensures CloudFormation "owns" the log group and can delete it properly when the stack is deleted.
@@ -381,15 +402,22 @@ This ensures CloudFormation "owns" the log group and can delete it properly when
 1. Clear build artifacts:
 
    ```sh
-   rm -rf dist/ .aws-sam/ node_modules/
+   pnpm run clean  # Removes dist/ and .aws-sam/
+   rm -rf node_modules/  # If needed
    ```
 
 2. Reinstall and rebuild:
 
    ```sh
    pnpm install
-   pnpm run build
-   sam build
+   pnpm run build  # Build TypeScript with esbuild
+   sam build       # Package for AWS
+   ```
+
+3. Verify the build output exists:
+
+   ```sh
+   ls -lh dist/index.mjs
    ```
 
 ## Clean Up
@@ -426,9 +454,13 @@ This will remove:
 
 1. Make changes to `src/index.ts`
 2. Build: `pnpm run build`
-3. Test locally: `sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json`
-4. Deploy: `sam deploy`
-5. Verify: `aws logs tail /monorepo-fem/ts-heartbeat-dev --follow`
+3. Verify build output: `ls -lh dist/index.mjs`
+4. Test locally (optional): `sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json`
+5. Package: `sam build`
+6. Deploy: `sam deploy`
+7. Verify: `aws logs tail /monorepo-fem/ts-heartbeat-dev --follow`
+
+**Key principle**: Build failures happen in step 2 (your code), packaging failures happen in step 5 (SAM). This separation makes debugging much easier.
 
 ## Contributing
 

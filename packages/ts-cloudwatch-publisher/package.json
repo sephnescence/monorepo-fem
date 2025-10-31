@@ -5,7 +5,8 @@
   "description": "AWS Lambda function that publishes heartbeat logs to CloudWatch",
   "type": "module",
   "scripts": {
-    "build": "pnpm -color run -r build",
+    "build": "node esbuild.config.js",
+    "clean": "rm -rf dist/ .aws-sam/",
     "lint": "pnpm -color run -r lint",
     "test": "pnpm -color run -r test",
     "deleted-later-dev": "pnpm -color run -r dev",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^24.9.2",
+    "esbuild": "^0.25.11",
     "typescript": "^5.7.3"
   }
 }

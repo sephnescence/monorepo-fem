@@ -44,21 +44,10 @@ Resources:
   CloudWatchPublisherFunction:
     Type: AWS::Serverless::Function
     DependsOn: LambdaLogGroup
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2022
-        Format: esm
-        Sourcemap: false
-        EntryPoints:
-          - src/index.ts
-        Banner:
-          js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
     Properties:
       FunctionName: !Sub ts-cloudwatch-publisher-${Environment}
       Description: Publishes heartbeat logs to CloudWatch on a schedule
-      CodeUri: .
+      CodeUri: dist/
       Handler: index.handler
       Environment:
         Variables:
