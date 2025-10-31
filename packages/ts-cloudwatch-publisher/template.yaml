@@ -14,8 +14,8 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 30
-    MemorySize: 256
+    Timeout: 4
+    MemorySize: 128
     Runtime: nodejs20.x
     Architectures:
       - arm64
@@ -44,9 +44,6 @@ Resources:
   # Lambda Function that publishes logs
   HeartbeatPublisherFunction:
     Type: AWS::Serverless::Function
-    DependsOn:
-      - HeartbeatsLogGroup
-      - HeartbeatPublisherLogGroup
     Properties:
       FunctionName: !Sub ts-heartbeat-publisher-${Environment}
       Description: Publishes heartbeat logs to CloudWatch on a schedule
