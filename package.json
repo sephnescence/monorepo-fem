@@ -7,6 +7,7 @@
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
+  "packageManager": "pnpm@8.0.0",
   "scripts": {
     "preinstall": "node -e \"if(process.env.npm_config_user_agent.indexOf('pnpm') === -1) { console.error('\\n\\nERROR: Please use pnpm instead of npm or yarn\\n\\nRun: pnpm install\\n'); process.exit(1); }\""
   },
