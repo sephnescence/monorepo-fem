@@ -12,6 +12,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 .claude/conversation-history
+.claude/plans
 
 node_modules
 dist
