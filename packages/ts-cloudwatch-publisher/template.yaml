@@ -22,7 +22,8 @@ Globals:
 
 Resources:
   # CloudWatch Log Group where heartbeat logs will be published
-  HeartbeatLogGroup:
+  # Created BEFORE the Lambda to ensure CloudFormation owns it
+  HeartbeatsLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -32,26 +33,28 @@ Resources:
 
   # Lambda's own execution log group (for monitoring the Lambda itself)
   # Created BEFORE the Lambda to ensure CloudFormation owns it
-  LambdaLogGroup:
+  HeartbeatPublisherLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: !Sub /aws/lambda/ts-cloudwatch-publisher-${Environment}
+      LogGroupName: !Sub /aws/lambda/ts-heartbeat-publisher-${Environment}
       RetentionInDays: 7
 
   # Lambda Function that publishes logs
-  CloudWatchPublisherFunction:
+  HeartbeatPublisherFunction:
     Type: AWS::Serverless::Function
-    DependsOn: LambdaLogGroup
+    DependsOn:
+      - HeartbeatsLogGroup
+      - HeartbeatPublisherLogGroup
     Properties:
-      FunctionName: !Sub ts-cloudwatch-publisher-${Environment}
+      FunctionName: !Sub ts-heartbeat-publisher-${Environment}
       Description: Publishes heartbeat logs to CloudWatch on a schedule
       CodeUri: dist/
       Handler: index.handler
       Environment:
         Variables:
-          LOG_GROUP_NAME: !Ref HeartbeatLogGroup
+          LOG_GROUP_NAME: !Ref HeartbeatsLogGroup
           LOG_STREAM_PREFIX: heartbeat
           NODE_ENV: !Ref Environment
       Policies:
@@ -61,35 +64,12 @@ Resources:
               Action:
                 - logs:CreateLogStream
                 - logs:PutLogEvents
-              Resource: !GetAtt HeartbeatLogGroup.Arn
+              Resource: !GetAtt HeartbeatsLogGroup.Arn
       Events:
         ScheduledEvent:
           Type: Schedule
           Properties:
             Schedule: rate(1 minute)
-            Name: !Sub ts-cloudwatch-publisher-schedule-${Environment}
-            Description: Triggers the CloudWatch publisher Lambda on a schedule
+            Name: !Sub ts-heartbeat-publisher-schedule-${Environment}
+            Description: Triggers Heartbeat Publisher every minute
             Enabled: true
-
-Outputs:
-  CloudWatchPublisherFunctionArn:
-    Description: ARN of the CloudWatch Publisher Lambda function
-    Value: !GetAtt CloudWatchPublisherFunction.Arn
-    Export:
-      Name: !Sub ${AWS::StackName}-FunctionArn
-
-  HeartbeatLogGroupName:
-    Description: Name of the CloudWatch log group where heartbeats are published
-    Value: !Ref HeartbeatLogGroup
-    Export:
-      Name: !Sub ${AWS::StackName}-HeartbeatLogGroup
-
-  ScheduleRuleArn:
-    Description: ARN of the EventBridge schedule rule
-    Value: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/ts-cloudwatch-publisher-schedule-${Environment}
-
-  LambdaLogGroupName:
-    Description: Name of the Lambda execution log group
-    Value: !Ref LambdaLogGroup
-    Export:
-      Name: !Sub ${AWS::StackName}-LambdaLogGroup
