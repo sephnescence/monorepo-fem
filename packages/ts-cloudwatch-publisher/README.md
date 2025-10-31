@@ -94,7 +94,7 @@ sam deploy --guided
 You'll be prompted for:
 
 - **Stack Name**: e.g., `ts-cloudwatch-publisher-dev`
-- **AWS Region**: e.g., `us-east-1`
+- **AWS Region**: e.g., `ap-southeast-2`
 - **Environment**: `dev`, `staging`, or `prod`
 - **ScheduleRate**: e.g., `rate(1 minute)`
 - **LogRetentionDays**: e.g., `7`
@@ -298,6 +298,49 @@ The Lambda's IAM role follows the **principle of least privilege**:
 - EventBridge will not retry on failure (by design for scheduled events)
 
 ## Troubleshooting
+
+### "Dynamic require of buffer is not supported" error
+
+If you see this error in the Lambda execution logs, it means the Lambda code wasn't properly bundled. This typically happens when:
+
+- The Lambda is using ES modules but dependencies have CommonJS-style dynamic requires
+- esbuild isn't configured to bundle dependencies correctly
+
+**Solution**: The `template.yaml` now includes proper esbuild configuration:
+
+```yaml
+Metadata:
+  BuildMethod: esbuild
+  BuildProperties:
+    Format: esm                    # Preserves ES module syntax
+    Target: es2022                 # Matches Node.js 20 runtime
+    Banner:                        # Creates require shim for dependencies
+      js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
+    EntryPoints:
+      - src/index.ts
+```
+
+The `Banner` creates a CommonJS-style `require` function in the ESM context, allowing any dependencies that use dynamic requires to work correctly.
+
+### Log group not deleted when stack is deleted
+
+If `/aws/lambda/ts-cloudwatch-publisher-{Environment}` remains after running `sam delete`, it's because AWS Lambda auto-created the log group before CloudFormation could manage it.
+
+**Solution**: The `template.yaml` now explicitly creates the log group BEFORE the Lambda function:
+
+```yaml
+LambdaLogGroup:
+  Type: AWS::Logs::LogGroup
+  DeletionPolicy: Delete
+  Properties:
+    LogGroupName: !Sub /aws/lambda/ts-cloudwatch-publisher-${Environment}
+
+CloudWatchPublisherFunction:
+  Type: AWS::Serverless::Function
+  DependsOn: LambdaLogGroup    # Ensures log group exists first
+```
+
+This ensures CloudFormation "owns" the log group and can delete it properly when the stack is deleted.
 
 ### Lambda execution succeeds but no logs in target group
 

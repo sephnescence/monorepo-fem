@@ -12,16 +12,6 @@ Parameters:
       - staging
       - prod
 
-  ScheduleRate:
-    Type: String
-    Default: "rate(1 minute)"
-    Description: EventBridge schedule expression
-
-  LogRetentionDays:
-    Type: Number
-    Default: 7
-    Description: Number of days to retain logs
-
 Globals:
   Function:
     Timeout: 30
@@ -38,16 +28,38 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub /monorepo-fem/ts-heartbeat-${Environment}
-      RetentionInDays: !Ref LogRetentionDays
+      RetentionInDays: 1
+
+  # Lambda's own execution log group (for monitoring the Lambda itself)
+  # Created BEFORE the Lambda to ensure CloudFormation owns it
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/ts-cloudwatch-publisher-${Environment}
+      RetentionInDays: 7
 
   # Lambda Function that publishes logs
   CloudWatchPublisherFunction:
     Type: AWS::Serverless::Function
+    DependsOn: LambdaLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Format: esm
+        Sourcemap: false
+        EntryPoints:
+          - src/index.ts
+        Banner:
+          js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
     Properties:
       FunctionName: !Sub ts-cloudwatch-publisher-${Environment}
       Description: Publishes heartbeat logs to CloudWatch on a schedule
       CodeUri: .
-      Handler: dist/index.handler
+      Handler: index.handler
       Environment:
         Variables:
           LOG_GROUP_NAME: !Ref HeartbeatLogGroup
@@ -65,19 +77,10 @@ Resources:
         ScheduledEvent:
           Type: Schedule
           Properties:
-            Schedule: !Ref ScheduleRate
+            Schedule: rate(1 minute)
             Name: !Sub ts-cloudwatch-publisher-schedule-${Environment}
             Description: Triggers the CloudWatch publisher Lambda on a schedule
             Enabled: true
-
-  # Lambda's own execution log group (for monitoring the Lambda itself)
-  LambdaLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      LogGroupName: !Sub /aws/lambda/ts-cloudwatch-publisher-${Environment}
-      RetentionInDays: 7
 
 Outputs:
   CloudWatchPublisherFunctionArn:

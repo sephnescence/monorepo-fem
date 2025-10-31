@@ -1,0 +1,44 @@
+{
+  "version": "6.0",
+  "nxVersion": "21.6.8",
+  "pathMappings": {},
+  "nxJsonPlugins": [],
+  "fileMap": {
+    "projectFileMap": {},
+    "nonProjectFiles": [
+      {
+        "file": ".gitignore",
+        "hash": "2578953153176256185"
+      },
+      {
+        "file": "README.md",
+        "hash": "2002401439612752136"
+      },
+      {
+        "file": "events/eventbridge-event.json",
+        "hash": "7667429864134735478"
+      },
+      {
+        "file": "package.json",
+        "hash": "12456355317893584367"
+      },
+      {
+        "file": "samconfig.toml",
+        "hash": "4709926344033810224"
+      },
+      {
+        "file": "src/index.ts",
+        "hash": "380415946401475727"
+      },
+      {
+        "file": "template.yaml",
+        "hash": "2893811395523933974"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "1582089953232191929"
+      }
+    ]
+  },
+  "externalNodesHash": "3244421341483603138"
+}
