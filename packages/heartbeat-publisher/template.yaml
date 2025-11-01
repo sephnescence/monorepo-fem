@@ -11,6 +11,11 @@ Parameters:
       - dev
       - staging
       - prod
+      - exp
+
+Conditions:
+  IsExpEnvironment: !Equals [!Ref Environment, exp]
+  IsNotExpEnvironment: !Not [!Equals [!Ref Environment, exp]]
 
 Globals:
   Function:
@@ -21,22 +26,58 @@ Globals:
       - arm64
 
 Resources:
-  # CloudWatch Log Group where heartbeat logs will be published
+  # CONDITIONAL RESOURCES NOTE:
+  # The following two log group resources (HeartbeatsLogGroupDelete and HeartbeatsLogGroupRetain)
+  # share the same LogGroupName but have mutually exclusive conditions.
+  # CloudFormation will only create ONE of them based on the Environment parameter:
+  # - If Environment=exp: Only HeartbeatsLogGroupDelete is created (with DeletionPolicy: Delete)
+  # - If Environment=dev/staging/prod: Only HeartbeatsLogGroupRetain is created (with DeletionPolicy: Retain)
+  # This pattern allows different deletion policies per environment while maintaining the same log group name.
+
+  # CloudWatch Log Group where heartbeat logs will be published (for exp environment - with Delete policy)
   # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatsLogGroup:
+  HeartbeatsLogGroupDelete:
     Type: AWS::Logs::LogGroup
+    Condition: IsExpEnvironment
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: !Sub /monorepo-fem/ts-heartbeat-${Environment}
+      LogGroupName: !Sub /monorepo-fem/heartbeats-${Environment}
       RetentionInDays: 1
 
-  # Lambda's own execution log group (for monitoring the Lambda itself)
+  # CloudWatch Log Group where heartbeat logs will be published (for non-exp environments - with Retain policy)
   # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatPublisherLogGroup:
+  HeartbeatsLogGroupRetain:
     Type: AWS::Logs::LogGroup
+    Condition: IsNotExpEnvironment
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /monorepo-fem/heartbeats-${Environment}
+      RetentionInDays: 1
+
+  # CONDITIONAL RESOURCES NOTE (same pattern as above):
+  # The following two log group resources share the same LogGroupName with mutually exclusive conditions.
+  # Only ONE will be created based on Environment parameter (exp=Delete, others=Retain).
+
+  # Lambda's own execution log group (for monitoring the Lambda itself - exp environment with Delete policy)
+  # Created BEFORE the Lambda to ensure CloudFormation owns it
+  HeartbeatPublisherLogGroupDelete:
+    Type: AWS::Logs::LogGroup
+    Condition: IsExpEnvironment
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
+      RetentionInDays: 7
+
+  # Lambda's own execution log group (for monitoring the Lambda itself - non-exp environments with Retain policy)
+  # Created BEFORE the Lambda to ensure CloudFormation owns it
+  HeartbeatPublisherLogGroupRetain:
+    Type: AWS::Logs::LogGroup
+    Condition: IsNotExpEnvironment
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
       RetentionInDays: 7
@@ -51,7 +92,12 @@ Resources:
       Handler: index.handler
       Environment:
         Variables:
-          LOG_GROUP_NAME: !Ref HeartbeatsLogGroup
+          LOG_GROUP_NAME:
+            !If [
+              IsExpEnvironment,
+              !Ref HeartbeatsLogGroupDelete,
+              !Ref HeartbeatsLogGroupRetain,
+            ]
           LOG_STREAM_PREFIX: heartbeat
           NODE_ENV: !Ref Environment
       Policies:
@@ -61,7 +107,12 @@ Resources:
               Action:
                 - logs:CreateLogStream
                 - logs:PutLogEvents
-              Resource: !GetAtt HeartbeatsLogGroup.Arn
+              Resource:
+                !If [
+                  IsExpEnvironment,
+                  !GetAtt HeartbeatsLogGroupDelete.Arn,
+                  !GetAtt HeartbeatsLogGroupRetain.Arn,
+                ]
       Events:
         ScheduledEvent:
           Type: Schedule
@@ -70,3 +121,149 @@ Resources:
             Name: !Sub heartbeat-publisher-schedule-${Environment}
             Description: Triggers Heartbeat Publisher every minute
             Enabled: true
+
+  # CloudWatch Dashboard for monitoring the heartbeat publisher
+  HeartbeatPublisherDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub heartbeat-publisher-${Environment}
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "explorer",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 15,
+              "properties": {
+                "metrics": [
+                  {
+                    "metricName": "Invocations",
+                    "resourceType": "AWS::Lambda::Function",
+                    "stat": "Sum"
+                  }
+                ],
+                "labels": [
+                  {
+                    "key": "aws:cloudformation:stack-name",
+                    "value": "${AWS::StackName}"
+                  }
+                ],
+                "widgetOptions": {
+                  "legend": {
+                    "position": "hidden"
+                  },
+                  "view": "timeSeries",
+                  "stacked": true,
+                  "rowsPerPage": 50,
+                  "widgetsPerRow": 1
+                },
+                "period": 3600,
+                "splitBy": "",
+                "region": "${AWS::Region}",
+                "title": "Lambda Invocations"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 15,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Errors", {"stat": "Sum", "label": "Errors"}],
+                  [".", "Throttles", {"stat": "Sum", "label": "Throttles"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Errors and Throttles",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 15,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Duration", {"stat": "Average", "label": "Avg Duration"}],
+                  ["...", {"stat": "Maximum", "label": "Max Duration"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Duration",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarm for Lambda Errors
+  HeartbeatPublisherErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub heartbeat-publisher-errors-${Environment}
+      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function encounters errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref HeartbeatPublisherFunction
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm for Lambda Throttles
+  HeartbeatPublisherThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub heartbeat-publisher-throttles-${Environment}
+      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function is throttled
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref HeartbeatPublisherFunction
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm for Lambda Duration approaching timeout
+  HeartbeatPublisherDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub heartbeat-publisher-duration-${Environment}
+      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function duration exceeds 80% of timeout (3.2s of 4s)
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 3200
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref HeartbeatPublisherFunction
+      TreatMissingData: notBreaching
