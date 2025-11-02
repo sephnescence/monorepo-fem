@@ -11,19 +11,25 @@
     "json",
     "jsonc"
   ],
-  "ignorePaths": ["node_modules", "dist", "build", ".git", "*.min.js", "*.css", ".claude/conversation-history"],
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "build",
+    ".git",
+    "*.min.js",
+    "*.css",
+    ".claude/conversation-history",
+    "**/.gitignore"
+  ],
   "words": [
-    "argh",
+    "eventbridge",
     "gonna",
-    "gotta",
     "haha",
-    "hmm",
-    "kinda",
     "linters",
-    "meh",
     "nope",
-    "sorta",
-    "wanna",
+    "proc",
+    "samignore",
+    "timezone",
     "yep"
   ]
 }

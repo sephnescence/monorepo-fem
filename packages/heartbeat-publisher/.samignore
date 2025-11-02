@@ -1,0 +1,25 @@
+# SAM ignore file - controls what gets packaged in the Lambda deployment
+# By default, SAM respects .gitignore, but .samignore takes precedence
+
+# IMPORTANT: First explicitly include what we need
+!dist/
+!node_modules/
+
+# Exclude source files (we only need compiled dist/)
+src/
+
+# Exclude build artifacts and caches
+.aws-sam/
+.nx/
+
+# Exclude documentation and config
+README.md
+tsconfig.json
+events/
+
+# Exclude git
+.git/
+.gitignore
+
+# Exclude logs
+*.log
