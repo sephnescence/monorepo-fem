@@ -34,7 +34,7 @@ This project uses a `cspell.json` configuration file for spell checking rather t
 
 - The project is configured for British English (`en-GB`), which aligns with Australian English spelling conventions
 - CSS files are excluded from spell checking. CSS linters will have to handle styling-specific concerns
-- Common colloquialisms (e.g., "haha", "gonna", "yep") are whitelisted to allow natural language in comments and documentation
+- Common colloquialisms (e.g., "haha", "gonna") are whitelisted to allow natural language in comments and documentation
 
 ## Package Manager Configuration
 

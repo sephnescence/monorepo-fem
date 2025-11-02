@@ -225,6 +225,95 @@ pnpm run build
 node dist/index.mjs
 ```
 
+## Testing
+
+This package uses **Vitest** for testing with full AWS SDK mocking support.
+
+### Running Tests
+
+```sh
+# Run all tests once
+pnpm test
+
+# Run tests in watch mode (re-runs on file changes)
+pnpm test:watch
+
+# Run tests with coverage report
+pnpm test:coverage
+
+# Run tests with UI (browser-based test viewer)
+pnpm test:ui
+```
+
+### Test Coverage
+
+Current coverage targets (enforced in `vitest.config.ts`):
+- **Statements**: 80%+
+- **Branches**: 80%+
+- **Functions**: 80%+
+- **Lines**: 80%+
+
+To view the detailed coverage report:
+
+```sh
+pnpm test:coverage
+open coverage/index.html  # Opens HTML coverage report in browser
+```
+
+### Test Structure
+
+Tests are located in `src/index.test.ts` alongside the implementation (`src/index.ts`). The test suite covers:
+
+- **Environment Validation**: Missing/invalid environment variables
+- **Log Stream Creation**: Successful creation, handling existing streams, error propagation
+- **Heartbeat Publishing**: Log structure, targeting, error handling
+- **End-to-End Execution**: Full handler flow with EventBridge events
+- **Log Stream Naming**: Format validation, uniqueness across invocations
+- **Error Handling**: Error logging, retry propagation
+
+### AWS SDK Mocking
+
+Tests use `aws-sdk-client-mock` to mock AWS SDK calls without requiring AWS credentials:
+
+```typescript
+import { mockClient } from 'aws-sdk-client-mock';
+import { CloudWatchLogsClient, CreateLogStreamCommand } from '@aws-sdk/client-cloudwatch-logs';
+
+const cwLogsMock = mockClient(CloudWatchLogsClient);
+
+// Mock successful log stream creation
+cwLogsMock.on(CreateLogStreamCommand).resolves({});
+
+// Mock ResourceAlreadyExistsException
+cwLogsMock.on(CreateLogStreamCommand).rejects(
+  new ResourceAlreadyExistsException({ message: 'Stream exists', $metadata: {} })
+);
+```
+
+### Writing New Tests
+
+When adding new functionality:
+
+1. Write tests first (TDD approach per CLAUDE.md)
+2. Use descriptive test names: `should [expected behaviour] when [condition]`
+3. Mock AWS SDK calls - never make real AWS API calls in tests
+4. Test both success and failure paths
+5. Verify error handling and error messages
+6. Run coverage to ensure new code is tested:
+   ```sh
+   pnpm test:coverage
+   ```
+
+### Continuous Testing During Development
+
+Use watch mode to get instant feedback while coding:
+
+```sh
+pnpm test:watch
+```
+
+This reruns tests automatically when you save files, providing rapid feedback loops.
+
 ## Modifying the Schedule
 
 To change how frequently the Lambda runs, update the `ScheduleRate` parameter in `template.yaml`:
@@ -453,14 +542,20 @@ This will remove:
 ## Development Workflow
 
 1. Make changes to `src/index.ts`
-2. Build: `pnpm run build`
-3. Verify build output: `ls -lh dist/index.mjs`
-4. Test locally (optional): `sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json`
-5. Package: `sam build`
-6. Deploy: `sam deploy`
-7. Verify: `aws logs tail /monorepo-fem/ts-heartbeat-dev --follow`
+2. Run tests: `pnpm test` (or `pnpm test:watch` for continuous feedback)
+3. Verify coverage: `pnpm test:coverage` (ensure ≥80% coverage)
+4. Build: `pnpm run build`
+5. Verify build output: `ls -lh dist/index.mjs`
+6. Test locally (optional): `sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json`
+7. Package: `sam build`
+8. Deploy: `sam deploy`
+9. Verify: `aws logs tail /monorepo-fem/ts-heartbeat-dev --follow`
 
-**Key principle**: Build failures happen in step 2 (your code), packaging failures happen in step 5 (SAM). This separation makes debugging much easier.
+**Key principles**:
+- Test failures happen in step 2 (your tests)
+- Build failures happen in step 4 (TypeScript/esbuild)
+- Packaging failures happen in step 7 (SAM)
+- This separation makes debugging much easier
 
 ## Contributing
 
