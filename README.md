@@ -13,9 +13,9 @@ By creating a team of subagents, I'm developing a practice of explicitly reasoni
 
 **Core principles:**
 
-- **Documentation over memorisation** - Civil engineers design for unknown future maintainers. Will I remember everything after 5-10 years? I should design for that future maintainer, too. It's gonna be me (Awful 90s throwback haha)
+- **Documentation over memorisation** - Civil engineers design for unknown future maintainers. Will I remember everything after 5-10 years? I should design for that future maintainer, too. It's gonna be me (Awful throwback haha)
 - **Testing & monitoring are non-negotiable** - Observability outlasts individual tenure
-- **Leverage AI for velocity, not shortcuts** - Always understand the "why" behind decisions. Copy/pasting doesn't deepen understanding anyway
+- **Leverage AI for velocity, not shortcuts** - Always understand the "why" behind decisions. Copy/pasting doesn't deepen understanding either. Stack Overflow may as well have been our first agent
 - **Communication scales; implementation details don't** - Understanding users and articulating trade-offs matters more than implementation details
 
 This approach aims to help me learn efficiently, reduce cognitive load, and work in a way that's more natural for my brain

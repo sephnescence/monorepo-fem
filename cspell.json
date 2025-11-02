@@ -22,31 +22,14 @@
     "**/.gitignore"
   ],
   "words": [
-    "addgroup",
-    "adduser",
-    "appgroup",
-    "appuser",
-    "argh",
-    "cleanup",
-    "crond",
-    "dcron",
-    "documentable",
     "eventbridge",
     "gonna",
-    "gotta",
     "haha",
-    "hmm",
-    "kinda",
     "linters",
-    "meh",
     "nope",
-    "pipefail",
     "proc",
     "samignore",
-    "sorta",
-    "templatable",
     "timezone",
-    "wanna",
     "yep"
   ]
 }

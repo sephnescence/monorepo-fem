@@ -123,6 +123,7 @@ Resources:
             Enabled: true
 
   # CloudWatch Dashboard for monitoring the heartbeat publisher
+  # Viewable from https://ap-southeast-2.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-2#dashboards/dashboard/heartbeat-publisher-dev?start=PT24H&end=null
   HeartbeatPublisherDashboard:
     Type: AWS::CloudWatch::Dashboard
     Properties:
