@@ -1,8 +1,8 @@
 {
-  "name": "heartbeat-publisher",
+  "name": "pulse-publisher",
   "version": "0.0.1",
   "private": true,
-  "description": "AWS Lambda function that publishes heartbeat logs to CloudWatch",
+  "description": "AWS Lambda function that publishes pulse logs to CloudWatch",
   "type": "module",
   "scripts": {
     "build": "node esbuild.config.js",
@@ -24,7 +24,6 @@
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^24.9.2",
     "@vitest/coverage-v8": "^4.0.6",
-    "aws-sdk-client-mock": "^4.1.0",
     "esbuild": "^0.25.11",
     "typescript": "^5.7.3",
     "vitest": "^4.0.6"

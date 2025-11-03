@@ -1,12 +1,24 @@
 {
-  "name": "heartbeat-publisher",
+  "name": "@monorepo-fem/cloudwatch-log-publisher",
   "version": "0.0.1",
   "private": true,
-  "description": "AWS Lambda function that publishes heartbeat logs to CloudWatch",
+  "description": "Reusable CloudWatch Logs publishing library",
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    }
+  },
   "scripts": {
-    "build": "node esbuild.config.js",
-    "clean": "rm -rf dist/ .aws-sam/",
+    "build": "tsc",
+    "clean": "rm -rf dist/",
     "lint": "echo 'Linting not yet configured'",
     "test": "vitest run",
     "test:watch": "vitest watch",
@@ -15,17 +27,13 @@
     "format": "echo 'Formatting not yet configured'",
     "check": "echo 'Check not yet configured'"
   },
-  "types": "dist/index.d.ts",
-  "module": "dist/index.js",
   "dependencies": {
-    "@monorepo-fem/cloudwatch-log-publisher": "workspace:*"
+    "@aws-sdk/client-cloudwatch-logs": "^3.921.0"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.145",
     "@types/node": "^24.9.2",
     "@vitest/coverage-v8": "^4.0.6",
     "aws-sdk-client-mock": "^4.1.0",
-    "esbuild": "^0.25.11",
     "typescript": "^5.7.3",
     "vitest": "^4.0.6"
   }

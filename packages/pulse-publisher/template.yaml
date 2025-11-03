@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Pulse publisher Lambda that publishes pulse logs to CloudWatch Logs every minute via EventBridge
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    Description: Environment name
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+      - exp
+
+Conditions:
+  IsExpEnvironment: !Equals [!Ref Environment, exp]
+  IsNotExpEnvironment: !Not [!Equals [!Ref Environment, exp]]
+
+Globals:
+  Function:
+    Timeout: 4
+    MemorySize: 128
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+
+Resources:
+  # CloudWatch Log Group where pulse logs will be published (for exp environment - with Delete policy)
+  PulseLogGroupDelete:
+    Type: AWS::Logs::LogGroup
+    Condition: IsExpEnvironment
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /monorepo-fem/pulse-${Environment}
+      RetentionInDays: 1
+
+  # CloudWatch Log Group where pulse logs will be published (for non-exp environments - with Retain policy)
+  PulseLogGroupRetain:
+    Type: AWS::Logs::LogGroup
+    Condition: IsNotExpEnvironment
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /monorepo-fem/pulse-${Environment}
+      RetentionInDays: 1
+
+  # Lambda's own execution log group (for exp environment with Delete policy)
+  PulsePublisherLogGroupDelete:
+    Type: AWS::Logs::LogGroup
+    Condition: IsExpEnvironment
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/pulse-publisher-${Environment}
+      RetentionInDays: 7
+
+  # Lambda's own execution log group (for non-exp environments with Retain policy)
+  PulsePublisherLogGroupRetain:
+    Type: AWS::Logs::LogGroup
+    Condition: IsNotExpEnvironment
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/pulse-publisher-${Environment}
+      RetentionInDays: 7
+
+  # Lambda Function that publishes logs
+  PulsePublisherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pulse-publisher-${Environment}
+      Description: Publishes pulse logs to CloudWatch on a schedule
+      CodeUri: dist/
+      Handler: index.handler
+      Environment:
+        Variables:
+          LOG_GROUP_NAME:
+            !If [
+              IsExpEnvironment,
+              !Ref PulseLogGroupDelete,
+              !Ref PulseLogGroupRetain,
+            ]
+          LOG_STREAM_PREFIX: pulse
+          NODE_ENV: !Ref Environment
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource:
+                !If [
+                  IsExpEnvironment,
+                  !GetAtt PulseLogGroupDelete.Arn,
+                  !GetAtt PulseLogGroupRetain.Arn,
+                ]
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Name: !Sub pulse-publisher-schedule-${Environment}
+            Description: Triggers Pulse Publisher every minute
+            Enabled: true
+
+  # CloudWatch Dashboard for monitoring the pulse publisher
+  PulsePublisherDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub pulse-publisher-${Environment}
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "explorer",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 15,
+              "properties": {
+                "metrics": [
+                  {
+                    "metricName": "Invocations",
+                    "resourceType": "AWS::Lambda::Function",
+                    "stat": "Sum"
+                  }
+                ],
+                "labels": [
+                  {
+                    "key": "aws:cloudformation:stack-name",
+                    "value": "${AWS::StackName}"
+                  }
+                ],
+                "widgetOptions": {
+                  "legend": {
+                    "position": "hidden"
+                  },
+                  "view": "timeSeries",
+                  "stacked": true,
+                  "rowsPerPage": 50,
+                  "widgetsPerRow": 1
+                },
+                "period": 3600,
+                "splitBy": "",
+                "region": "${AWS::Region}",
+                "title": "Lambda Invocations"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 15,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Errors", {"stat": "Sum", "label": "Errors"}],
+                  [".", "Throttles", {"stat": "Sum", "label": "Throttles"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Errors and Throttles",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 15,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Duration", {"stat": "Average", "label": "Avg Duration"}],
+                  ["...", {"stat": "Maximum", "label": "Max Duration"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Duration",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "min": 0
+                  }
+                }
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarm for Lambda Errors
+  PulsePublisherErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pulse-publisher-errors-${Environment}
+      AlarmDescription: Alerts when the Pulse Publisher Lambda function encounters errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PulsePublisherFunction
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm for Lambda Throttles
+  PulsePublisherThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pulse-publisher-throttles-${Environment}
+      AlarmDescription: Alerts when the Pulse Publisher Lambda function is throttled
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PulsePublisherFunction
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm for Lambda Duration approaching timeout
+  PulsePublisherDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pulse-publisher-duration-${Environment}
+      AlarmDescription: Alerts when the Pulse Publisher Lambda function duration exceeds 80% of timeout (3.2s of 4s)
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 3200
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PulsePublisherFunction
+      TreatMissingData: notBreaching
