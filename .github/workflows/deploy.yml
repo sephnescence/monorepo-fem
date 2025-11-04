@@ -78,6 +78,14 @@ jobs:
       - name: Detect affected projects
         id: affected
         run: |
+          # If deploy_all is requested, skip Nx detection and mark all projects as affected
+          if [ "${{ github.event.inputs.deploy_all }}" == "true" ]; then
+            echo "Deploy all packages requested - marking all projects as affected"
+            AFFECTED_JSON='["@monorepo-fem/cloudwatch-log-publisher","heartbeat-publisher","pulse-publisher"]'
+            echo "projects=$AFFECTED_JSON" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # Determine base reference for comparison
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             BASE_REF="origin/main"
@@ -123,7 +131,7 @@ jobs:
     name: Build and Test
     runs-on: ubuntu-latest
     needs: detect-affected
-    if: needs.detect-affected.outputs.affected != '[]'
+    if: needs.detect-affected.outputs.affected != '[]' || github.event.inputs.deploy_all == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -144,27 +152,39 @@ jobs:
 
       - name: Build affected packages
         run: |
-          # Determine base ref, handling edge cases
-          if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
-            BASE_REF="origin/main~1"
-          else
-            # Fallback to origin/main for first commit scenarios
+          # Use the same ref logic as detect-affected job
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             BASE_REF="origin/main"
+            HEAD_REF="${{ github.event.inputs.branch }}"
+          else
+            # For push events, use origin/main~1 if it exists, otherwise origin/main
+            if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
+              BASE_REF="origin/main~1"
+            else
+              BASE_REF="origin/main"
+            fi
+            HEAD_REF="HEAD"
           fi
-          echo "Building affected packages comparing HEAD against $BASE_REF"
-          pnpm affected:build --base=$BASE_REF --head=HEAD
+          echo "Building affected packages comparing $HEAD_REF against $BASE_REF"
+          pnpm affected:build --base=$BASE_REF --head=$HEAD_REF
 
       - name: Test affected packages
         run: |
-          # Determine base ref, handling edge cases
-          if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
-            BASE_REF="origin/main~1"
-          else
-            # Fallback to origin/main for first commit scenarios
+          # Use the same ref logic as detect-affected job
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             BASE_REF="origin/main"
+            HEAD_REF="${{ github.event.inputs.branch }}"
+          else
+            # For push events, use origin/main~1 if it exists, otherwise origin/main
+            if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
+              BASE_REF="origin/main~1"
+            else
+              BASE_REF="origin/main"
+            fi
+            HEAD_REF="HEAD"
           fi
-          echo "Testing affected packages comparing HEAD against $BASE_REF"
-          pnpm affected:test --base=$BASE_REF --head=HEAD
+          echo "Testing affected packages comparing $HEAD_REF against $BASE_REF"
+          pnpm affected:test --base=$BASE_REF --head=$HEAD_REF
 
       - name: Upload build artefacts
         uses: actions/upload-artifact@v4
