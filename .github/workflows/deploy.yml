@@ -294,7 +294,7 @@ jobs:
 
           echo "No alarms triggered. Deployment successful."
 
-      - name: Cleanup on failure
+      - name: Clean up on failure
         if: failure()
         working-directory: packages/heartbeat-publisher
         run: |
@@ -442,7 +442,7 @@ jobs:
 
           echo "No alarms triggered. Deployment successful."
 
-      - name: Cleanup on failure
+      - name: Clean up on failure
         if: failure()
         working-directory: packages/pulse-publisher
         run: |
