@@ -242,7 +242,7 @@ aws cloudformation rollback-stack --stack-name heartbeat-publisher-prod
 - CloudFormation maintains stack history
 - Previous Lambda versions are retained (via versioning)
 - Log groups and CloudWatch resources persist across rollbacks
-- EventBridge rules may need manual cleanup if rollback fails
+- EventBridge rules may need manual clean up if rollback fails
 
 ## Deployment Workflow Details
 

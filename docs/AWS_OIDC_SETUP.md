@@ -30,7 +30,7 @@ aws iam create-open-id-connect-provider \
 
 ### 2. Create IAM Policy for Deployment
 
-Create a file named `github-actions-deploy-policy.json`:
+Create a file named `.github/github-actions-deploy-policy.json`:
 
 **Note on S3 bucket resources:** The S3 bucket ARNs use wildcards (`aws-sam-cli-managed-default-samclisourcebucket-*`) because SAM CLI automatically creates managed buckets with a random suffix when `resolve_s3 = true` is set in `samconfig.toml`. Both Lambda packages (`heartbeat-publisher` and `pulse-publisher`) use this setting, so SAM will create and manage the deployment bucket automatically.
 
@@ -178,7 +178,7 @@ Create the policy:
 ```sh
 aws iam create-policy \
   --policy-name GitHubActionsDeployPolicy \
-  --policy-document file://github-actions-deploy-policy.json \
+  --policy-document file://.github/github-actions-deploy-policy.json \
   --region ap-southeast-2
 ```
 
@@ -186,7 +186,7 @@ aws iam create-policy \
 
 ### 3. Create IAM Role for GitHub Actions
 
-Create a file named `github-trust-policy.json` (replace `YOUR_GITHUB_ORG` and `YOUR_REPO_NAME`):
+Create a file named `.github/github-trust-policy.json` (Update `token.actions.githubusercontent.com:sub`: replace `YOUR_GITHUB_ORG` and `YOUR_REPO_NAME`):
 
 ```json
 {
@@ -203,7 +203,7 @@ Create a file named `github-trust-policy.json` (replace `YOUR_GITHUB_ORG` and `Y
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_ORG/YOUR_REPO_NAME:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub": "repo:sephnescence/monorepo-fem:ref:refs/heads/main"
         }
       }
     }
@@ -218,7 +218,7 @@ Create the role:
 ```sh
 aws iam create-role \
   --role-name GitHubActionsDeployRole \
-  --assume-role-policy-document file://github-trust-policy.json \
+  --assume-role-policy-document file://.github/github-trust-policy.json \
   --region ap-southeast-2
 ```
 

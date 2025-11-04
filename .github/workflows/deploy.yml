@@ -83,7 +83,13 @@ jobs:
             BASE_REF="origin/main"
             HEAD_REF="${{ github.event.inputs.branch }}"
           else
-            BASE_REF="origin/main~1"
+            # For push events, use origin/main~1 if it exists, otherwise origin/main
+            if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
+              BASE_REF="origin/main~1"
+            else
+              echo "Warning: origin/main~1 not found, using origin/main as base"
+              BASE_REF="origin/main"
+            fi
             HEAD_REF="HEAD"
           fi
 
@@ -121,6 +127,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for Nx affected detection
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -135,10 +143,28 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build affected packages
-        run: pnpm affected:build --base=origin/main~1 --head=HEAD
+        run: |
+          # Determine base ref, handling edge cases
+          if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
+            BASE_REF="origin/main~1"
+          else
+            # Fallback to origin/main for first commit scenarios
+            BASE_REF="origin/main"
+          fi
+          echo "Building affected packages comparing HEAD against $BASE_REF"
+          pnpm affected:build --base=$BASE_REF --head=HEAD
 
       - name: Test affected packages
-        run: pnpm affected:test --base=origin/main~1 --head=HEAD
+        run: |
+          # Determine base ref, handling edge cases
+          if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
+            BASE_REF="origin/main~1"
+          else
+            # Fallback to origin/main for first commit scenarios
+            BASE_REF="origin/main"
+          fi
+          echo "Testing affected packages comparing HEAD against $BASE_REF"
+          pnpm affected:test --base=$BASE_REF --head=HEAD
 
       - name: Upload build artefacts
         uses: actions/upload-artifact@v4
@@ -179,10 +205,12 @@ jobs:
           name: build-artefacts
           path: packages/
 
+      # Authentication happens via OpenID Connect (OIDC)
+      # See .github/github-actions-deploy-policy.json / .github/github-actions-deploy-policy.json
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
           aws-region: ap-southeast-2
 
       - name: Validate SAM template
@@ -268,7 +296,7 @@ jobs:
 
           echo "No alarms triggered. Deployment successful."
 
-      - name: Cleanup on failure
+      - name: Clean up on failure
         if: failure()
         working-directory: packages/heartbeat-publisher
         run: |
@@ -327,10 +355,12 @@ jobs:
           name: build-artefacts
           path: packages/
 
+      # Authentication happens via OpenID Connect (OIDC)
+      # See .github/github-actions-deploy-policy.json / .github/github-actions-deploy-policy.json
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
           aws-region: ap-southeast-2
 
       - name: Validate SAM template
@@ -416,7 +446,7 @@ jobs:
 
           echo "No alarms triggered. Deployment successful."
 
-      - name: Cleanup on failure
+      - name: Clean up on failure
         if: failure()
         working-directory: packages/pulse-publisher
         run: |
