@@ -1,4 +1,4 @@
-name: Deploy to Production when pushed to main
+name: Deploy
 
 on:
   push:
@@ -6,11 +6,6 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      branch:
-        description: "Branch to deploy"
-        required: true
-        default: "main"
-        type: string
       environment:
         description: "Target environment"
         required: true
@@ -20,16 +15,11 @@ on:
           - dev
           - staging
           - prod
-      deploy_all:
-        description: "Deploy all packages (skip Nx affected detection)"
-        required: false
-        default: false
-        type: boolean
 
-# Prevent concurrent deployments
+# Prevent concurrent deployments per environment
 concurrency:
-  group: production-deployment
-  cancel-in-progress: false
+  group: deployment-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false # This will apparently be queued if there is a collision
 
 permissions:
   id-token: write # Required for OIDC authentication with AWS
@@ -50,7 +40,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
           fetch-depth: 0 # Full history for Nx affected detection
 
       - name: Setup pnpm
@@ -68,38 +57,24 @@ jobs:
       - name: Set target environment
         id: set-env
         run: |
-          # For manual dispatch, use the selected environment; for push to main, use prod
+          # For manual dispatch, use the selected environment; for push to main, use dev
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
           else
-            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "environment=dev" >> $GITHUB_OUTPUT
           fi
 
       - name: Detect affected projects
         id: affected
         run: |
-          # If deploy_all is requested, skip Nx detection and mark all projects as affected
-          if [ "${{ github.event.inputs.deploy_all }}" == "true" ]; then
-            echo "Deploy all packages requested - marking all projects as affected"
-            AFFECTED_JSON='["@monorepo-fem/cloudwatch-log-publisher","heartbeat-publisher","pulse-publisher"]'
-            echo "projects=$AFFECTED_JSON" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Determine base reference for comparison
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            BASE_REF="origin/main"
-            HEAD_REF="${{ github.event.inputs.branch }}"
+          # Compare HEAD against HEAD~1 for automatic deployments
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            BASE_REF="HEAD~1"
           else
-            # For push events, use origin/main~1 if it exists, otherwise origin/main
-            if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
-              BASE_REF="origin/main~1"
-            else
-              echo "Warning: origin/main~1 not found, using origin/main as base"
-              BASE_REF="origin/main"
-            fi
-            HEAD_REF="HEAD"
+            echo "Warning: HEAD~1 not found, using origin/main as base"
+            BASE_REF="origin/main"
           fi
+          HEAD_REF="HEAD"
 
           echo "Comparing $HEAD_REF against $BASE_REF"
 
@@ -113,25 +88,16 @@ jobs:
       - name: Check which packages are affected
         id: check
         run: |
-          # If deploy_all is checked, mark all packages as affected
-          if [ "${{ github.event.inputs.deploy_all }}" == "true" ]; then
-            echo "Deploy all packages requested - skipping Nx affected detection"
-            echo "has-heartbeat=true" >> $GITHUB_OUTPUT
-            echo "has-pulse=true" >> $GITHUB_OUTPUT
-            echo "has-cloudwatch=true" >> $GITHUB_OUTPUT
-          else
-            AFFECTED="${{ steps.affected.outputs.projects }}"
-            echo "has-heartbeat=$(echo "$AFFECTED" | jq 'contains(["heartbeat-publisher"])')" >> $GITHUB_OUTPUT
-            echo "has-pulse=$(echo "$AFFECTED" | jq 'contains(["pulse-publisher"])')" >> $GITHUB_OUTPUT
-            echo "has-cloudwatch=$(echo "$AFFECTED" | jq 'contains(["@monorepo-fem/cloudwatch-log-publisher"])')" >> $GITHUB_OUTPUT
-          fi
+          AFFECTED="${{ steps.affected.outputs.projects }}"
+          echo "has-heartbeat=$(echo "$AFFECTED" | jq 'contains(["heartbeat-publisher"])')" >> $GITHUB_OUTPUT
+          echo "has-pulse=$(echo "$AFFECTED" | jq 'contains(["pulse-publisher"])')" >> $GITHUB_OUTPUT
+          echo "has-cloudwatch=$(echo "$AFFECTED" | jq 'contains(["@monorepo-fem/cloudwatch-log-publisher"])')" >> $GITHUB_OUTPUT
 
   # Job 2: Build and test affected packages
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
     needs: detect-affected
-    if: needs.detect-affected.outputs.affected != '[]' || github.event.inputs.deploy_all == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -152,37 +118,25 @@ jobs:
 
       - name: Build affected packages
         run: |
-          # Use the same ref logic as detect-affected job
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            BASE_REF="origin/main"
-            HEAD_REF="${{ github.event.inputs.branch }}"
+          # Compare HEAD against HEAD~1 for automatic deployments
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            BASE_REF="HEAD~1"
           else
-            # For push events, use origin/main~1 if it exists, otherwise origin/main
-            if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
-              BASE_REF="origin/main~1"
-            else
-              BASE_REF="origin/main"
-            fi
-            HEAD_REF="HEAD"
+            BASE_REF="origin/main"
           fi
+          HEAD_REF="HEAD"
           echo "Building affected packages comparing $HEAD_REF against $BASE_REF"
           pnpm affected:build --base=$BASE_REF --head=$HEAD_REF
 
       - name: Test affected packages
         run: |
-          # Use the same ref logic as detect-affected job
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            BASE_REF="origin/main"
-            HEAD_REF="${{ github.event.inputs.branch }}"
+          # Compare HEAD against HEAD~1 for automatic deployments
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            BASE_REF="HEAD~1"
           else
-            # For push events, use origin/main~1 if it exists, otherwise origin/main
-            if git rev-parse --verify origin/main~1 >/dev/null 2>&1; then
-              BASE_REF="origin/main~1"
-            else
-              BASE_REF="origin/main"
-            fi
-            HEAD_REF="HEAD"
+            BASE_REF="origin/main"
           fi
+          HEAD_REF="HEAD"
           echo "Testing affected packages comparing $HEAD_REF against $BASE_REF"
           pnpm affected:test --base=$BASE_REF --head=$HEAD_REF
 
