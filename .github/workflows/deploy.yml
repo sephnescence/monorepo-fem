@@ -205,10 +205,12 @@ jobs:
           name: build-artefacts
           path: packages/
 
+      # Authentication happens via OpenID Connect (OIDC)
+      # See .github/github-actions-deploy-policy.json / .github/github-actions-deploy-policy.json
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
           aws-region: ap-southeast-2
 
       - name: Validate SAM template
@@ -353,10 +355,12 @@ jobs:
           name: build-artefacts
           path: packages/
 
+      # Authentication happens via OpenID Connect (OIDC)
+      # See .github/github-actions-deploy-policy.json / .github/github-actions-deploy-policy.json
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
           aws-region: ap-southeast-2
 
       - name: Validate SAM template
