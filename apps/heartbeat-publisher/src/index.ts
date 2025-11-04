@@ -1,5 +1,5 @@
 import { CloudWatchLogPublisher } from "@monorepo-fem/cloudwatch-log-publisher";
-import { ScheduledEvent } from "aws-lambda";
+import type { ScheduledEvent } from "aws-lambda";
 
 /**
  * Environment variables required by this Lambda

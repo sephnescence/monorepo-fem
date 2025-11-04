@@ -27,7 +27,6 @@ This project uses a `cspell.json` configuration file for spell checking rather t
 **Portability & Team Consistency:**
 
 - `cspell.json` is a standalone configuration file that works across different editors and tools (VS Code, Cursor, CLI, pre-commit hooks, CI/CD)
-- \
 - This ensures consistent spell checking behaviour regardless of how developers use the project
 
 **Language Configuration:**

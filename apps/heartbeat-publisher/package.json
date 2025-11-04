@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node esbuild.config.js",
     "clean": "rm -rf dist/ .aws-sam/",
-    "lint": "echo 'Linting not yet configured'",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
