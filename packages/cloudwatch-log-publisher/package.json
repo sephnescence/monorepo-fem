@@ -1,0 +1,40 @@
+{
+  "name": "@monorepo-fem/cloudwatch-log-publisher",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Reusable CloudWatch Logs publishing library",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist/",
+    "lint": "echo 'Linting not yet configured'",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "format": "echo 'Formatting not yet configured'",
+    "check": "echo 'Check not yet configured'"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.921.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "@vitest/coverage-v8": "^4.0.6",
+    "aws-sdk-client-mock": "^4.1.0",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.6"
+  }
+}

@@ -1,5 +1,5 @@
-import { CloudWatchLogPublisher } from "@monorepo-fem/cloudwatch-log-publisher";
-import { ScheduledEvent } from "aws-lambda";
+import { CloudWatchLogPublisher } from '@monorepo-fem/cloudwatch-log-publisher';
+import { ScheduledEvent } from 'aws-lambda';
 
 /**
  * Environment variables required by this Lambda
@@ -17,11 +17,11 @@ function validateEnvironment(): LambdaEnvironment {
   const logStreamPrefix = process.env.LOG_STREAM_PREFIX;
 
   if (!logGroupName) {
-    throw new Error("Missing required environment variable: LOG_GROUP_NAME");
+    throw new Error('Missing required environment variable: LOG_GROUP_NAME');
   }
 
   if (!logStreamPrefix) {
-    throw new Error("Missing required environment variable: LOG_STREAM_PREFIX");
+    throw new Error('Missing required environment variable: LOG_STREAM_PREFIX');
   }
 
   return {
@@ -34,7 +34,7 @@ function validateEnvironment(): LambdaEnvironment {
  * Lambda handler for EventBridge scheduled events
  *
  * This function is triggered by EventBridge on a schedule (e.g., every 1 minute).
- * It publishes a heartbeat log message to a CloudWatch log group for monitoring purposes.
+ * It publishes a pulse log message to a CloudWatch log group for monitoring purposes.
  *
  * EventBridge scheduled event structure:
  * {
@@ -50,8 +50,8 @@ function validateEnvironment(): LambdaEnvironment {
  * }
  */
 export async function handler(event: ScheduledEvent): Promise<void> {
-  console.log("Lambda invoked by EventBridge scheduled event");
-  console.log("Event:", JSON.stringify(event, null, 2));
+  console.log('Lambda invoked by EventBridge scheduled event');
+  console.log('Event:', JSON.stringify(event, null, 2));
 
   try {
     // Validate environment configuration
@@ -64,23 +64,23 @@ export async function handler(event: ScheduledEvent): Promise<void> {
       logStreamPrefix: env.LOG_STREAM_PREFIX,
     });
 
-    // Publish heartbeat log
+    // Publish pulse log
     await publisher.publish({
-      message: "I have a heartbeat",
+      message: 'I have a pulse',
       timestamp: new Date().toISOString(),
-      source: "heartbeat-publisher",
-      type: "heartbeat",
+      source: 'pulse-publisher',
+      type: 'pulse',
     });
 
-    console.log("Handler completed successfully");
+    console.log('Handler completed successfully');
   } catch (error) {
-    console.error("Error in Lambda handler:", error);
+    console.error('Error in Lambda handler:', error);
 
     // Log detailed error information
     if (error instanceof Error) {
-      console.error("Error name:", error.name);
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
     }
 
     // Re-throw to let Lambda's retry logic handle it

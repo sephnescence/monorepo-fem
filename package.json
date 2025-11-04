@@ -9,10 +9,18 @@
   },
   "packageManager": "pnpm@10.20.0",
   "scripts": {
-    "preinstall": "node -e \"if(process.env.npm_config_user_agent.indexOf('pnpm') === -1) { console.error('\\n\\nERROR: Please use pnpm instead of npm or yarn\\n\\nRun: pnpm install\\n'); process.exit(1); }\""
+    "preinstall": "node -e \"if(process.env.npm_config_user_agent.indexOf('pnpm') === -1) { console.error('\\n\\nERROR: Please use pnpm instead of npm or yarn\\n\\nRun: pnpm install\\n'); process.exit(1); }\"",
+    "build": "nx run-many --target=build --all",
+    "test": "nx run-many --target=test --all",
+    "lint": "nx run-many --target=lint --all",
+    "affected:build": "nx affected --target=build",
+    "affected:test": "nx affected --target=test",
+    "affected:lint": "nx affected --target=lint",
+    "affected:graph": "nx affected:graph",
+    "graph": "nx graph"
   },
-  "dependencies": {},
   "devDependencies": {
-    "lerna": "^9.0.0"
+    "lerna": "^9.0.0",
+    "nx": "^22.0.2"
   }
 }

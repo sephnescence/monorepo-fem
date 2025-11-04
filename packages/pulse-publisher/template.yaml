@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Heartbeat publisher Lambda that publishes heartbeats to CloudWatch Logs every minute via EventBridge
+Description: Pulse publisher Lambda that publishes pulse logs to CloudWatch Logs every minute via EventBridge
 
 Parameters:
   Environment:
@@ -26,68 +26,52 @@ Globals:
       - arm64
 
 Resources:
-  # CONDITIONAL RESOURCES NOTE:
-  # The following two log group resources (HeartbeatsLogGroupDelete and HeartbeatsLogGroupRetain)
-  # share the same LogGroupName but have mutually exclusive conditions.
-  # CloudFormation will only create ONE of them based on the Environment parameter:
-  # - If Environment=exp: Only HeartbeatsLogGroupDelete is created (with DeletionPolicy: Delete)
-  # - If Environment=dev/staging/prod: Only HeartbeatsLogGroupRetain is created (with DeletionPolicy: Retain)
-  # This pattern allows different deletion policies per environment while maintaining the same log group name.
-
-  # CloudWatch Log Group where heartbeat logs will be published (for exp environment - with Delete policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatsLogGroupDelete:
+  # CloudWatch Log Group where pulse logs will be published (for exp environment - with Delete policy)
+  PulseLogGroupDelete:
     Type: AWS::Logs::LogGroup
     Condition: IsExpEnvironment
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: !Sub /monorepo-fem/heartbeats-${Environment}
+      LogGroupName: !Sub /monorepo-fem/pulse-${Environment}
       RetentionInDays: 1
 
-  # CloudWatch Log Group where heartbeat logs will be published (for non-exp environments - with Retain policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatsLogGroupRetain:
+  # CloudWatch Log Group where pulse logs will be published (for non-exp environments - with Retain policy)
+  PulseLogGroupRetain:
     Type: AWS::Logs::LogGroup
     Condition: IsNotExpEnvironment
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      LogGroupName: !Sub /monorepo-fem/heartbeats-${Environment}
+      LogGroupName: !Sub /monorepo-fem/pulse-${Environment}
       RetentionInDays: 1
 
-  # CONDITIONAL RESOURCES NOTE (same pattern as above):
-  # The following two log group resources share the same LogGroupName with mutually exclusive conditions.
-  # Only ONE will be created based on Environment parameter (exp=Delete, others=Retain).
-
-  # Lambda's own execution log group (for monitoring the Lambda itself - exp environment with Delete policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatPublisherLogGroupDelete:
+  # Lambda's own execution log group (for exp environment with Delete policy)
+  PulsePublisherLogGroupDelete:
     Type: AWS::Logs::LogGroup
     Condition: IsExpEnvironment
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
+      LogGroupName: !Sub /aws/lambda/pulse-publisher-${Environment}
       RetentionInDays: 7
 
-  # Lambda's own execution log group (for monitoring the Lambda itself - non-exp environments with Retain policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatPublisherLogGroupRetain:
+  # Lambda's own execution log group (for non-exp environments with Retain policy)
+  PulsePublisherLogGroupRetain:
     Type: AWS::Logs::LogGroup
     Condition: IsNotExpEnvironment
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
+      LogGroupName: !Sub /aws/lambda/pulse-publisher-${Environment}
       RetentionInDays: 7
 
   # Lambda Function that publishes logs
-  HeartbeatPublisherFunction:
+  PulsePublisherFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub heartbeat-publisher-${Environment}
-      Description: Publishes heartbeat logs to CloudWatch on a schedule
+      FunctionName: !Sub pulse-publisher-${Environment}
+      Description: Publishes pulse logs to CloudWatch on a schedule
       CodeUri: dist/
       Handler: index.handler
       Environment:
@@ -95,10 +79,10 @@ Resources:
           LOG_GROUP_NAME:
             !If [
               IsExpEnvironment,
-              !Ref HeartbeatsLogGroupDelete,
-              !Ref HeartbeatsLogGroupRetain,
+              !Ref PulseLogGroupDelete,
+              !Ref PulseLogGroupRetain,
             ]
-          LOG_STREAM_PREFIX: heartbeat
+          LOG_STREAM_PREFIX: pulse
           NODE_ENV: !Ref Environment
       Policies:
         - Version: "2012-10-17"
@@ -110,26 +94,25 @@ Resources:
               Resource:
                 !If [
                   IsExpEnvironment,
-                  !GetAtt HeartbeatsLogGroupDelete.Arn,
-                  !GetAtt HeartbeatsLogGroupRetain.Arn,
+                  !GetAtt PulseLogGroupDelete.Arn,
+                  !GetAtt PulseLogGroupRetain.Arn,
                 ]
       Events:
         ScheduledEvent:
           Type: Schedule
           Properties:
             Schedule: rate(1 minute)
-            Name: !Sub heartbeat-publisher-schedule-${Environment}
-            Description: Triggers Heartbeat Publisher every minute
+            Name: !Sub pulse-publisher-schedule-${Environment}
+            Description: Triggers Pulse Publisher every minute
             Enabled: true
 
-  # CloudWatch Dashboard for monitoring the heartbeat publisher
-  # Viewable from https://ap-southeast-2.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-2#dashboards/dashboard/heartbeat-publisher-dev?start=PT24H&end=null
-  HeartbeatPublisherDashboard:
+  # CloudWatch Dashboard for monitoring the pulse publisher
+  PulsePublisherDashboard:
     Type: AWS::CloudWatch::Dashboard
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      DashboardName: !Sub heartbeat-publisher-${Environment}
+      DashboardName: !Sub pulse-publisher-${Environment}
       DashboardBody: !Sub |
         {
           "widgets": [
@@ -218,13 +201,13 @@ Resources:
         }
 
   # CloudWatch Alarm for Lambda Errors
-  HeartbeatPublisherErrorAlarm:
+  PulsePublisherErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      AlarmName: !Sub heartbeat-publisher-errors-${Environment}
-      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function encounters errors
+      AlarmName: !Sub pulse-publisher-errors-${Environment}
+      AlarmDescription: Alerts when the Pulse Publisher Lambda function encounters errors
       MetricName: Errors
       Namespace: AWS/Lambda
       Statistic: Sum
@@ -234,17 +217,17 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref HeartbeatPublisherFunction
+          Value: !Ref PulsePublisherFunction
       TreatMissingData: notBreaching
 
   # CloudWatch Alarm for Lambda Throttles
-  HeartbeatPublisherThrottleAlarm:
+  PulsePublisherThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      AlarmName: !Sub heartbeat-publisher-throttles-${Environment}
-      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function is throttled
+      AlarmName: !Sub pulse-publisher-throttles-${Environment}
+      AlarmDescription: Alerts when the Pulse Publisher Lambda function is throttled
       MetricName: Throttles
       Namespace: AWS/Lambda
       Statistic: Sum
@@ -254,17 +237,17 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref HeartbeatPublisherFunction
+          Value: !Ref PulsePublisherFunction
       TreatMissingData: notBreaching
 
   # CloudWatch Alarm for Lambda Duration approaching timeout
-  HeartbeatPublisherDurationAlarm:
+  PulsePublisherDurationAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      AlarmName: !Sub heartbeat-publisher-duration-${Environment}
-      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function duration exceeds 80% of timeout (3.2s of 4s)
+      AlarmName: !Sub pulse-publisher-duration-${Environment}
+      AlarmDescription: Alerts when the Pulse Publisher Lambda function duration exceeds 80% of timeout (3.2s of 4s)
       MetricName: Duration
       Namespace: AWS/Lambda
       Statistic: Maximum
@@ -274,5 +257,5 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref HeartbeatPublisherFunction
+          Value: !Ref PulsePublisherFunction
       TreatMissingData: notBreaching

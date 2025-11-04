@@ -37,7 +37,7 @@ function setPendingPublishError(error: Error): void {
   pendingPublishError = error;
 }
 
-describe('Lambda Handler - Heartbeat Publisher', () => {
+describe('Lambda Handler - Pulse Publisher', () => {
   // Store original env vars
   const originalEnv = process.env;
 
@@ -45,7 +45,7 @@ describe('Lambda Handler - Heartbeat Publisher', () => {
     // Reset environment variables
     process.env = {
       ...originalEnv,
-      LOG_GROUP_NAME: '/test/heartbeats',
+      LOG_GROUP_NAME: '/test/pulse',
       LOG_STREAM_PREFIX: 'test-stream',
     };
 
@@ -98,13 +98,13 @@ describe('Lambda Handler - Heartbeat Publisher', () => {
 
       // Verify that publisher was configured correctly
       const mockPublisher = getMockPublisher();
-      expect(mockPublisher.getLogGroupName()).toBe('/test/heartbeats');
+      expect(mockPublisher.getLogGroupName()).toBe('/test/pulse');
       expect(mockPublisher.getLogStreamPrefix()).toBe('test-stream');
     });
   });
 
-  describe('Heartbeat Publishing', () => {
-    it('should publish heartbeat successfully', async () => {
+  describe('Pulse Publishing', () => {
+    it('should publish pulse successfully', async () => {
       const event = createMockScheduledEvent();
       await handler(event);
 
@@ -114,9 +114,9 @@ describe('Lambda Handler - Heartbeat Publisher', () => {
       const publishedEvent = mockPublisher.getLastPublishedEvent();
       expect(publishedEvent).toBeDefined();
       expect(publishedEvent!.logEvent).toMatchObject({
-        message: 'I have a heartbeat',
-        source: 'heartbeat-publisher',
-        type: 'heartbeat',
+        message: 'I have a pulse',
+        source: 'pulse-publisher',
+        type: 'pulse',
         timestamp: expect.any(String),
       });
     });
@@ -129,7 +129,6 @@ describe('Lambda Handler - Heartbeat Publisher', () => {
       await expect(handler(event)).rejects.toThrow('CloudWatch service unavailable');
     });
   });
-
 
   describe('Handler Execution', () => {
     it('should complete full execution flow successfully', async () => {
@@ -158,7 +157,6 @@ describe('Lambda Handler - Heartbeat Publisher', () => {
       await expect(handler(event)).resolves.not.toThrow();
     });
   });
-
 
   describe('Error Handling', () => {
     it('should log error details when handler fails', async () => {
