@@ -109,6 +109,8 @@ Resources:
   # CloudWatch Dashboard for monitoring the pulse publisher
   PulsePublisherDashboard:
     Type: AWS::CloudWatch::Dashboard
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       DashboardName: !Sub pulse-publisher-${Environment}
       DashboardBody: !Sub |
@@ -201,6 +203,8 @@ Resources:
   # CloudWatch Alarm for Lambda Errors
   PulsePublisherErrorAlarm:
     Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       AlarmName: !Sub pulse-publisher-errors-${Environment}
       AlarmDescription: Alerts when the Pulse Publisher Lambda function encounters errors
@@ -219,6 +223,8 @@ Resources:
   # CloudWatch Alarm for Lambda Throttles
   PulsePublisherThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       AlarmName: !Sub pulse-publisher-throttles-${Environment}
       AlarmDescription: Alerts when the Pulse Publisher Lambda function is throttled
@@ -237,6 +243,8 @@ Resources:
   # CloudWatch Alarm for Lambda Duration approaching timeout
   PulsePublisherDurationAlarm:
     Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       AlarmName: !Sub pulse-publisher-duration-${Environment}
       AlarmDescription: Alerts when the Pulse Publisher Lambda function duration exceeds 80% of timeout (3.2s of 4s)

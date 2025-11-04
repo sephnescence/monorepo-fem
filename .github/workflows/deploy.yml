@@ -1,0 +1,471 @@
+name: Deploy to Production when pushed to main
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: true
+        default: "main"
+        type: string
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      deploy_all:
+        description: "Deploy all packages (skip Nx affected detection)"
+        required: false
+        default: false
+        type: boolean
+
+# Prevent concurrent deployments
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # Required for OIDC authentication with AWS
+  contents: read
+
+jobs:
+  # Job 1: Detect affected packages
+  detect-affected:
+    name: Detect Affected Packages
+    runs-on: ubuntu-latest
+    outputs:
+      affected: ${{ steps.affected.outputs.projects }}
+      has-heartbeat: ${{ steps.check.outputs.has-heartbeat }}
+      has-pulse: ${{ steps.check.outputs.has-pulse }}
+      has-cloudwatch: ${{ steps.check.outputs.has-cloudwatch }}
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+          fetch-depth: 0 # Full history for Nx affected detection
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set target environment
+        id: set-env
+        run: |
+          # For manual dispatch, use the selected environment; for push to main, use prod
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect affected projects
+        id: affected
+        run: |
+          # Determine base reference for comparison
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            BASE_REF="origin/main"
+            HEAD_REF="${{ github.event.inputs.branch }}"
+          else
+            BASE_REF="origin/main~1"
+            HEAD_REF="HEAD"
+          fi
+
+          echo "Comparing $HEAD_REF against $BASE_REF"
+
+          AFFECTED=$(npx nx show projects --affected --base=$BASE_REF --head=$HEAD_REF)
+          echo "Affected projects:"
+          echo "$AFFECTED"
+          # Convert to JSON array for easier parsing
+          AFFECTED_JSON=$(echo "$AFFECTED" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "projects=$AFFECTED_JSON" >> $GITHUB_OUTPUT
+
+      - name: Check which packages are affected
+        id: check
+        run: |
+          # If deploy_all is checked, mark all packages as affected
+          if [ "${{ github.event.inputs.deploy_all }}" == "true" ]; then
+            echo "Deploy all packages requested - skipping Nx affected detection"
+            echo "has-heartbeat=true" >> $GITHUB_OUTPUT
+            echo "has-pulse=true" >> $GITHUB_OUTPUT
+            echo "has-cloudwatch=true" >> $GITHUB_OUTPUT
+          else
+            AFFECTED="${{ steps.affected.outputs.projects }}"
+            echo "has-heartbeat=$(echo "$AFFECTED" | jq 'contains(["heartbeat-publisher"])')" >> $GITHUB_OUTPUT
+            echo "has-pulse=$(echo "$AFFECTED" | jq 'contains(["pulse-publisher"])')" >> $GITHUB_OUTPUT
+            echo "has-cloudwatch=$(echo "$AFFECTED" | jq 'contains(["@monorepo-fem/cloudwatch-log-publisher"])')" >> $GITHUB_OUTPUT
+          fi
+
+  # Job 2: Build and test affected packages
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: detect-affected
+    if: needs.detect-affected.outputs.affected != '[]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build affected packages
+        run: pnpm affected:build --base=origin/main~1 --head=HEAD
+
+      - name: Test affected packages
+        run: pnpm affected:test --base=origin/main~1 --head=HEAD
+
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artefacts
+          path: |
+            packages/*/dist/
+          retention-days: 7
+
+  # Job 3: Deploy heartbeat-publisher
+  deploy-heartbeat:
+    name: Deploy Heartbeat Publisher
+    runs-on: ubuntu-latest
+    needs: [detect-affected, build-and-test]
+    if: needs.detect-affected.outputs.has-heartbeat == 'true' || needs.detect-affected.outputs.has-cloudwatch == 'true'
+    environment:
+      name: ${{ needs.detect-affected.outputs.environment }}
+      url: https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artefacts
+          path: packages/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-2
+
+      - name: Validate SAM template
+        working-directory: packages/heartbeat-publisher
+        run: sam validate --lint
+
+      - name: Check stack exists
+        working-directory: packages/heartbeat-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          STACK_NAME="heartbeat-publisher-$ENV"
+          if ! aws cloudformation describe-stacks --stack-name $STACK_NAME 2>/dev/null; then
+            echo "⚠️  WARNING: Stack does not exist. This is a CREATE operation."
+            echo "If deployment fails, stack will enter ROLLBACK_COMPLETE state."
+            echo "SAM will auto-delete the stack on failure to prevent stuck state."
+          else
+            echo "✓ Stack exists. This is an UPDATE operation."
+          fi
+
+      - name: SAM Build
+        working-directory: packages/heartbeat-publisher
+        run: sam build
+
+      - name: SAM Deploy
+        working-directory: packages/heartbeat-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          sam deploy \
+            --config-env $ENV \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --on-failure ROLLBACK \
+            --parameter-overrides Environment=$ENV
+
+      - name: Get deployment info
+        id: deployment-info
+        working-directory: packages/heartbeat-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          STACK_NAME="heartbeat-publisher-$ENV"
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='HeartbeatPublisherFunction'].OutputValue" \
+            --output text)
+          echo "function-name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
+          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+
+      - name: Health check - Invoke Lambda
+        run: |
+          RESPONSE=$(aws lambda invoke \
+            --function-name ${{ steps.deployment-info.outputs.function-name }} \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/response.json)
+
+          STATUS_CODE=$(echo $RESPONSE | jq -r '.StatusCode')
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Lambda invocation failed with status code: $STATUS_CODE"
+            exit 1
+          fi
+
+          echo "Lambda invoked successfully"
+          cat /tmp/response.json
+
+      - name: Monitor CloudWatch Alarms
+        run: |
+          echo "Waiting 2 minutes for CloudWatch metrics to populate..."
+          sleep 120
+
+          STACK_NAME="${{ steps.deployment-info.outputs.stack-name }}"
+          ALARMS=$(aws cloudwatch describe-alarms \
+            --alarm-name-prefix "${STACK_NAME}" \
+            --state-value ALARM \
+            --query 'MetricAlarms[*].[AlarmName,StateReason]' \
+            --output text)
+
+          if [ -n "$ALARMS" ]; then
+            echo "CloudWatch alarms in ALARM state detected:"
+            echo "$ALARMS"
+            echo "Deployment may have issues. Check CloudWatch console."
+            exit 1
+          fi
+
+          echo "No alarms triggered. Deployment successful."
+
+      - name: Cleanup on failure
+        if: failure()
+        working-directory: packages/heartbeat-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          STACK_NAME="heartbeat-publisher-$ENV"
+
+          # Get current stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Stack status: $STACK_STATUS"
+
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+            echo "⚠️  Stack in ROLLBACK_COMPLETE state. Deleting stack to enable future deployments..."
+            aws cloudformation delete-stack --stack-name $STACK_NAME
+            echo "Stack deletion initiated. Future deployments will recreate the stack."
+          elif [[ "$STACK_STATUS" =~ ^(UPDATE_FAILED|UPDATE_ROLLBACK_FAILED)$ ]]; then
+            echo "Update failed. Attempting to rollback to previous version..."
+            aws cloudformation rollback-stack --stack-name $STACK_NAME || echo "Rollback command failed, but stack may auto-recover"
+          elif [[ "$STACK_STATUS" == "DOES_NOT_EXIST" ]]; then
+            echo "Stack does not exist (CREATE operation failed). SAM should have auto-cleaned it."
+          else
+            echo "Stack in state: $STACK_STATUS. Manual intervention may be required."
+          fi
+
+  # Job 4: Deploy pulse-publisher
+  deploy-pulse:
+    name: Deploy Pulse Publisher
+    runs-on: ubuntu-latest
+    needs: [detect-affected, build-and-test]
+    if: needs.detect-affected.outputs.has-pulse == 'true' || needs.detect-affected.outputs.has-cloudwatch == 'true'
+    environment:
+      name: ${{ needs.detect-affected.outputs.environment }}
+      url: https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artefacts
+          path: packages/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-2
+
+      - name: Validate SAM template
+        working-directory: packages/pulse-publisher
+        run: sam validate --lint
+
+      - name: Check stack exists
+        working-directory: packages/pulse-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          STACK_NAME="pulse-publisher-$ENV"
+          if ! aws cloudformation describe-stacks --stack-name $STACK_NAME 2>/dev/null; then
+            echo "⚠️  WARNING: Stack does not exist. This is a CREATE operation."
+            echo "If deployment fails, stack will enter ROLLBACK_COMPLETE state."
+            echo "SAM will auto-delete the stack on failure to prevent stuck state."
+          else
+            echo "✓ Stack exists. This is an UPDATE operation."
+          fi
+
+      - name: SAM Build
+        working-directory: packages/pulse-publisher
+        run: sam build
+
+      - name: SAM Deploy
+        working-directory: packages/pulse-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          sam deploy \
+            --config-env $ENV \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --on-failure ROLLBACK \
+            --parameter-overrides Environment=$ENV
+
+      - name: Get deployment info
+        id: deployment-info
+        working-directory: packages/pulse-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          STACK_NAME="pulse-publisher-$ENV"
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='PulsePublisherFunction'].OutputValue" \
+            --output text)
+          echo "function-name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
+          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+
+      - name: Health check - Invoke Lambda
+        run: |
+          RESPONSE=$(aws lambda invoke \
+            --function-name ${{ steps.deployment-info.outputs.function-name }} \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/response.json)
+
+          STATUS_CODE=$(echo $RESPONSE | jq -r '.StatusCode')
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Lambda invocation failed with status code: $STATUS_CODE"
+            exit 1
+          fi
+
+          echo "Lambda invoked successfully"
+          cat /tmp/response.json
+
+      - name: Monitor CloudWatch Alarms
+        run: |
+          echo "Waiting 2 minutes for CloudWatch metrics to populate..."
+          sleep 120
+
+          STACK_NAME="${{ steps.deployment-info.outputs.stack-name }}"
+          ALARMS=$(aws cloudwatch describe-alarms \
+            --alarm-name-prefix "${STACK_NAME}" \
+            --state-value ALARM \
+            --query 'MetricAlarms[*].[AlarmName,StateReason]' \
+            --output text)
+
+          if [ -n "$ALARMS" ]; then
+            echo "CloudWatch alarms in ALARM state detected:"
+            echo "$ALARMS"
+            echo "Deployment may have issues. Check CloudWatch console."
+            exit 1
+          fi
+
+          echo "No alarms triggered. Deployment successful."
+
+      - name: Cleanup on failure
+        if: failure()
+        working-directory: packages/pulse-publisher
+        run: |
+          ENV="${{ needs.detect-affected.outputs.environment }}"
+          STACK_NAME="pulse-publisher-$ENV"
+
+          # Get current stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Stack status: $STACK_STATUS"
+
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+            echo "⚠️  Stack in ROLLBACK_COMPLETE state. Deleting stack to enable future deployments..."
+            aws cloudformation delete-stack --stack-name $STACK_NAME
+            echo "Stack deletion initiated. Future deployments will recreate the stack."
+          elif [[ "$STACK_STATUS" =~ ^(UPDATE_FAILED|UPDATE_ROLLBACK_FAILED)$ ]]; then
+            echo "Update failed. Attempting to rollback to previous version..."
+            aws cloudformation rollback-stack --stack-name $STACK_NAME || echo "Rollback command failed, but stack may auto-recover"
+          elif [[ "$STACK_STATUS" == "DOES_NOT_EXIST" ]]; then
+            echo "Stack does not exist (CREATE operation failed). SAM should have auto-cleaned it."
+          else
+            echo "Stack in state: $STACK_STATUS. Manual intervention may be required."
+          fi
+
+  # Job 5: Summary
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [detect-affected, deploy-heartbeat, deploy-pulse]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Affected packages:** ${{ needs.detect-affected.outputs.affected }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.detect-affected.outputs.has-heartbeat }}" == "true" ] || [ "${{ needs.detect-affected.outputs.has-cloudwatch }}" == "true" ]; then
+            STATUS="${{ needs.deploy-heartbeat.result }}"
+            echo "| heartbeat-publisher | $STATUS |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.detect-affected.outputs.has-pulse }}" == "true" ] || [ "${{ needs.detect-affected.outputs.has-cloudwatch }}" == "true" ]; then
+            STATUS="${{ needs.deploy-pulse.result }}"
+            echo "| pulse-publisher | $STATUS |" >> $GITHUB_STEP_SUMMARY
+          fi
