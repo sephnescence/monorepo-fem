@@ -15,6 +15,59 @@ importers:
         specifier: ^22.0.2
         version: 22.0.2
 
+  apps/heartbeat-publisher:
+    dependencies:
+      '@monorepo-fem/cloudwatch-log-publisher':
+        specifier: workspace:*
+        version: link:../../packages/cloudwatch-log-publisher
+    devDependencies:
+      '@types/aws-lambda':
+        specifier: ^8.10.145
+        version: 8.10.157
+      '@types/node':
+        specifier: ^24.9.2
+        version: 24.9.2
+      '@vitest/coverage-v8':
+        specifier: ^4.0.6
+        version: 4.0.6(vitest@4.0.6(@types/node@24.9.2)(yaml@2.8.1))
+      aws-sdk-client-mock:
+        specifier: ^4.1.0
+        version: 4.1.0
+      esbuild:
+        specifier: ^0.25.11
+        version: 0.25.11
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.6
+        version: 4.0.6(@types/node@24.9.2)(yaml@2.8.1)
+
+  apps/pulse-publisher:
+    dependencies:
+      '@monorepo-fem/cloudwatch-log-publisher':
+        specifier: workspace:*
+        version: link:../../packages/cloudwatch-log-publisher
+    devDependencies:
+      '@types/aws-lambda':
+        specifier: ^8.10.145
+        version: 8.10.157
+      '@types/node':
+        specifier: ^24.9.2
+        version: 24.9.2
+      '@vitest/coverage-v8':
+        specifier: ^4.0.6
+        version: 4.0.6(vitest@4.0.6(@types/node@24.9.2)(yaml@2.8.1))
+      esbuild:
+        specifier: ^0.25.11
+        version: 0.25.11
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.6
+        version: 4.0.6(@types/node@24.9.2)(yaml@2.8.1)
+
   packages/cloudwatch-log-publisher:
     dependencies:
       '@aws-sdk/client-cloudwatch-logs':
@@ -30,59 +83,6 @@ importers:
       aws-sdk-client-mock:
         specifier: ^4.1.0
         version: 4.1.0
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-      vitest:
-        specifier: ^4.0.6
-        version: 4.0.6(@types/node@24.9.2)(yaml@2.8.1)
-
-  packages/heartbeat-publisher:
-    dependencies:
-      '@monorepo-fem/cloudwatch-log-publisher':
-        specifier: workspace:*
-        version: link:../cloudwatch-log-publisher
-    devDependencies:
-      '@types/aws-lambda':
-        specifier: ^8.10.145
-        version: 8.10.157
-      '@types/node':
-        specifier: ^24.9.2
-        version: 24.9.2
-      '@vitest/coverage-v8':
-        specifier: ^4.0.6
-        version: 4.0.6(vitest@4.0.6(@types/node@24.9.2)(yaml@2.8.1))
-      aws-sdk-client-mock:
-        specifier: ^4.1.0
-        version: 4.1.0
-      esbuild:
-        specifier: ^0.25.11
-        version: 0.25.11
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-      vitest:
-        specifier: ^4.0.6
-        version: 4.0.6(@types/node@24.9.2)(yaml@2.8.1)
-
-  packages/pulse-publisher:
-    dependencies:
-      '@monorepo-fem/cloudwatch-log-publisher':
-        specifier: workspace:*
-        version: link:../cloudwatch-log-publisher
-    devDependencies:
-      '@types/aws-lambda':
-        specifier: ^8.10.145
-        version: 8.10.157
-      '@types/node':
-        specifier: ^24.9.2
-        version: 24.9.2
-      '@vitest/coverage-v8':
-        specifier: ^4.0.6
-        version: 4.0.6(vitest@4.0.6(@types/node@24.9.2)(yaml@2.8.1))
-      esbuild:
-        specifier: ^0.25.11
-        version: 0.25.11
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
