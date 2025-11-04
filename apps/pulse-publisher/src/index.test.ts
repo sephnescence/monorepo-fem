@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import type { ScheduledEvent } from 'aws-lambda';
 import { MockCloudWatchLogPublisher } from '@monorepo-fem/cloudwatch-log-publisher/testing';
+import type { ScheduledEvent } from 'aws-lambda';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Mock the cloudwatch-log-publisher module
 let mockPublisherInstance: MockCloudWatchLogPublisher | null = null;

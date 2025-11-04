@@ -1,12 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mockClient } from 'aws-sdk-client-mock';
 import {
   CloudWatchLogsClient,
   CreateLogStreamCommand,
   PutLogEventsCommand,
   ResourceAlreadyExistsException,
 } from '@aws-sdk/client-cloudwatch-logs';
-
+import { mockClient } from 'aws-sdk-client-mock';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   CloudWatchLogPublisher,
   generateLogStreamName,
