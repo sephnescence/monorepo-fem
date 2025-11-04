@@ -16,7 +16,7 @@ on:
 # Prevent concurrent deployments per environment
 concurrency:
   group: heartbeat-deployment-${{ github.event.inputs.environment }}
-  cancel-in-progress: false
+  cancel-in-progress: false # This will apparently be queued if there is a collision
 
 permissions:
   id-token: write # Required for OIDC authentication with AWS
@@ -44,7 +44,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build heartbeat-publisher
-        run: pnpm --filter heartbeat-publisher build
+        run: pnpm --filter heartbeat-publisher... build
 
       - name: Test heartbeat-publisher
         run: pnpm --filter heartbeat-publisher test
