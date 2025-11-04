@@ -66,7 +66,7 @@ packages/cloudwatch-log-publisher/src/publisher.ts
 
 ```sh
 # Files changed
-packages/heartbeat-publisher/src/index.ts
+apps/heartbeat-publisher/src/index.ts
 
 # Affected packages detected
 - heartbeat-publisher
@@ -80,7 +80,7 @@ packages/heartbeat-publisher/src/index.ts
 
 ```sh
 # Files changed
-packages/pulse-publisher/src/index.ts
+apps/pulse-publisher/src/index.ts
 
 # Affected packages detected
 - pulse-publisher
@@ -150,11 +150,11 @@ For local testing or emergency deployments, you can deploy manually.
 
 ```sh
 # Deploy heartbeat-publisher to dev
-cd packages/heartbeat-publisher
+cd apps/heartbeat-publisher
 pnpm deploy:dev
 
 # Deploy pulse-publisher to dev
-cd packages/pulse-publisher
+cd apps/pulse-publisher
 pnpm deploy:dev
 ```
 
@@ -162,11 +162,11 @@ pnpm deploy:dev
 
 ```sh
 # Deploy heartbeat-publisher to staging
-cd packages/heartbeat-publisher
+cd apps/heartbeat-publisher
 pnpm deploy:staging
 
 # Deploy pulse-publisher to staging
-cd packages/pulse-publisher
+cd apps/pulse-publisher
 pnpm deploy:staging
 ```
 
@@ -176,11 +176,11 @@ pnpm deploy:staging
 
 ```sh
 # Deploy heartbeat-publisher to production
-cd packages/heartbeat-publisher
+cd apps/heartbeat-publisher
 pnpm deploy:prod
 
 # Deploy pulse-publisher to production
-cd packages/pulse-publisher
+cd apps/pulse-publisher
 pnpm deploy:prod
 ```
 
@@ -377,7 +377,7 @@ cd packages/cloudwatch-log-publisher
 pnpm build
 
 # Then build the Lambda
-cd ../heartbeat-publisher
+cd ../../apps/heartbeat-publisher
 pnpm build
 
 # Deploy

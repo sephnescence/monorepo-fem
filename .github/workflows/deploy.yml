@@ -172,6 +172,7 @@ jobs:
           name: build-artefacts
           path: |
             packages/*/dist/
+            apps/*/dist/
           retention-days: 7
 
   # Job 3: Deploy heartbeat-publisher
@@ -203,7 +204,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artefacts
-          path: packages/
+          path: .
 
       # Authentication happens via OpenID Connect (OIDC)
       # See .github/github-actions-deploy-policy.json / .github/github-actions-deploy-policy.json
@@ -214,11 +215,11 @@ jobs:
           aws-region: ap-southeast-2
 
       - name: Validate SAM template
-        working-directory: packages/heartbeat-publisher
+        working-directory: apps/heartbeat-publisher
         run: sam validate --lint
 
       - name: Check stack exists
-        working-directory: packages/heartbeat-publisher
+        working-directory: apps/heartbeat-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           STACK_NAME="heartbeat-publisher-$ENV"
@@ -231,11 +232,11 @@ jobs:
           fi
 
       - name: SAM Build
-        working-directory: packages/heartbeat-publisher
+        working-directory: apps/heartbeat-publisher
         run: sam build
 
       - name: SAM Deploy
-        working-directory: packages/heartbeat-publisher
+        working-directory: apps/heartbeat-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           sam deploy \
@@ -247,7 +248,7 @@ jobs:
 
       - name: Get deployment info
         id: deployment-info
-        working-directory: packages/heartbeat-publisher
+        working-directory: apps/heartbeat-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           STACK_NAME="heartbeat-publisher-$ENV"
@@ -298,7 +299,7 @@ jobs:
 
       - name: Clean up on failure
         if: failure()
-        working-directory: packages/heartbeat-publisher
+        working-directory: apps/heartbeat-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           STACK_NAME="heartbeat-publisher-$ENV"
@@ -353,7 +354,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artefacts
-          path: packages/
+          path: .
 
       # Authentication happens via OpenID Connect (OIDC)
       # See .github/github-actions-deploy-policy.json / .github/github-actions-deploy-policy.json
@@ -364,11 +365,11 @@ jobs:
           aws-region: ap-southeast-2
 
       - name: Validate SAM template
-        working-directory: packages/pulse-publisher
+        working-directory: apps/pulse-publisher
         run: sam validate --lint
 
       - name: Check stack exists
-        working-directory: packages/pulse-publisher
+        working-directory: apps/pulse-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           STACK_NAME="pulse-publisher-$ENV"
@@ -381,11 +382,11 @@ jobs:
           fi
 
       - name: SAM Build
-        working-directory: packages/pulse-publisher
+        working-directory: apps/pulse-publisher
         run: sam build
 
       - name: SAM Deploy
-        working-directory: packages/pulse-publisher
+        working-directory: apps/pulse-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           sam deploy \
@@ -397,7 +398,7 @@ jobs:
 
       - name: Get deployment info
         id: deployment-info
-        working-directory: packages/pulse-publisher
+        working-directory: apps/pulse-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           STACK_NAME="pulse-publisher-$ENV"
@@ -448,7 +449,7 @@ jobs:
 
       - name: Clean up on failure
         if: failure()
-        working-directory: packages/pulse-publisher
+        working-directory: apps/pulse-publisher
         run: |
           ENV="${{ needs.detect-affected.outputs.environment }}"
           STACK_NAME="pulse-publisher-$ENV"
