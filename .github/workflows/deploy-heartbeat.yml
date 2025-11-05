@@ -57,149 +57,15 @@ jobs:
           retention-days: 7
 
   # Job 2: Deploy heartbeat-publisher
+  # This job calls the reusable deployment workflow
+  # Secrets are inherited from the repository/environment level
   deploy:
-    name: Deploy to ${{ github.event.inputs.environment }}
-    runs-on: ubuntu-latest
     needs: build-and-test
-    environment:
-      name: ${{ github.event.inputs.environment }}
-      url: https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Download build artefacts
-        uses: actions/download-artifact@v4
-        with:
-          name: heartbeat-build-artefacts
-          path: apps/heartbeat-publisher/dist/
-
-      # Authentication happens via OpenID Connect (OIDC)
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
-          aws-region: ap-southeast-2
-
-      - name: Validate SAM template
-        working-directory: apps/heartbeat-publisher
-        run: sam validate --lint
-
-      - name: Check stack exists
-        working-directory: apps/heartbeat-publisher
-        run: |
-          ENV="${{ github.event.inputs.environment }}"
-          STACK_NAME="heartbeat-publisher-$ENV"
-          if ! aws cloudformation describe-stacks --stack-name $STACK_NAME 2>/dev/null; then
-            echo "⚠️  WARNING: Stack does not exist. This is a CREATE operation."
-            echo "If deployment fails, stack will enter ROLLBACK_COMPLETE state."
-            echo "SAM will auto-delete the stack on failure to prevent stuck state."
-          else
-            echo "✓ Stack exists. This is an UPDATE operation."
-          fi
-
-      - name: SAM Build
-        working-directory: apps/heartbeat-publisher
-        run: sam build
-
-      - name: SAM Deploy
-        working-directory: apps/heartbeat-publisher
-        run: |
-          ENV="${{ github.event.inputs.environment }}"
-          sam deploy \
-            --config-env $ENV \
-            --no-confirm-changeset \
-            --no-fail-on-empty-changeset \
-            --on-failure ROLLBACK \
-            --parameter-overrides Environment=$ENV
-
-      - name: Get deployment info
-        id: deployment-info
-        working-directory: apps/heartbeat-publisher
-        run: |
-          ENV="${{ github.event.inputs.environment }}"
-          STACK_NAME="heartbeat-publisher-$ENV"
-          FUNCTION_NAME=$(aws cloudformation describe-stacks \
-            --stack-name $STACK_NAME \
-            --query "Stacks[0].Outputs[?OutputKey=='HeartbeatPublisherFunction'].OutputValue" \
-            --output text)
-          echo "function-name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
-          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
-
-      - name: Health check - Invoke Lambda
-        run: |
-          RESPONSE=$(aws lambda invoke \
-            --function-name ${{ steps.deployment-info.outputs.function-name }} \
-            --payload '{}' \
-            --cli-binary-format raw-in-base64-out \
-            /tmp/response.json)
-
-          STATUS_CODE=$(echo $RESPONSE | jq -r '.StatusCode')
-          if [ "$STATUS_CODE" != "200" ]; then
-            echo "Lambda invocation failed with status code: $STATUS_CODE"
-            exit 1
-          fi
-
-          echo "Lambda invoked successfully"
-          cat /tmp/response.json
-
-      - name: Monitor CloudWatch Alarms
-        run: |
-          echo "Waiting 2 minutes for CloudWatch metrics to populate..."
-          sleep 120
-
-          STACK_NAME="${{ steps.deployment-info.outputs.stack-name }}"
-          ALARMS=$(aws cloudwatch describe-alarms \
-            --alarm-name-prefix "${STACK_NAME}" \
-            --state-value ALARM \
-            --query 'MetricAlarms[*].[AlarmName,StateReason]' \
-            --output text)
-
-          if [ -n "$ALARMS" ]; then
-            echo "CloudWatch alarms in ALARM state detected:"
-            echo "$ALARMS"
-            echo "Deployment may have issues. Check CloudWatch console."
-            exit 1
-          fi
-
-          echo "No alarms triggered. Deployment successful."
-
-      - name: Clean up on failure
-        if: failure()
-        working-directory: apps/heartbeat-publisher
-        run: |
-          ENV="${{ github.event.inputs.environment }}"
-          STACK_NAME="heartbeat-publisher-$ENV"
-
-          # Get current stack status
-          STACK_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name $STACK_NAME \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
-
-          echo "Stack status: $STACK_STATUS"
-
-          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
-            echo "⚠️  Stack in ROLLBACK_COMPLETE state. Deleting stack to enable future deployments..."
-            aws cloudformation delete-stack --stack-name $STACK_NAME
-            echo "Stack deletion initiated. Future deployments will recreate the stack."
-          elif [[ "$STACK_STATUS" =~ ^(UPDATE_FAILED|UPDATE_ROLLBACK_FAILED)$ ]]; then
-            echo "Update failed. Attempting to rollback to previous version..."
-            aws cloudformation rollback-stack --stack-name $STACK_NAME || echo "Rollback command failed, but stack may auto-recover"
-          elif [[ "$STACK_STATUS" == "DOES_NOT_EXIST" ]]; then
-            echo "Stack does not exist (CREATE operation failed). SAM should have auto-cleaned it."
-          else
-            echo "Stack in state: $STACK_STATUS. Manual intervention may be required."
-          fi
+    uses: ./.github/workflows/reusable-deploy-lambda.yml
+    with:
+      app-name: heartbeat-publisher
+      environment: ${{ github.event.inputs.environment }}
+      working-directory: apps/heartbeat-publisher
+      output-key: HeartbeatPublisherFunction
+      artefact-name: heartbeat-build-artefacts
+    secrets: inherit

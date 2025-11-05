@@ -1,0 +1,197 @@
+# Reusable workflow for deploying Lambda functions via AWS SAM
+#
+# This workflow handles the common deployment pattern for our Lambda applications.
+# It expects build artefacts to already exist (uploaded by the calling workflow).
+#
+# Usage example:
+#   deploy:
+#     uses: ./.github/workflows/reusable-deploy-lambda.yml
+#     with:
+#       app-name: pulse-publisher
+#       environment: dev
+#       working-directory: apps/pulse-publisher
+#       output-key: PulsePublisherFunction
+#       artefact-name: pulse-build-artefacts
+#     secrets: inherit
+#
+# Note: This workflow declares the environment block internally, which enables
+# environment protection and approvals (if configured in GitHub Settings).
+# Secrets are inherited from the calling workflow using 'secrets: inherit'.
+
+name: Reusable Lambda Deployment
+
+on:
+  workflow_call:
+    inputs:
+      app-name:
+        description: "Name of the app to deploy (e.g., pulse-publisher, heartbeat-publisher)"
+        required: true
+        type: string
+      environment:
+        description: "Target environment (dev/staging/prod)"
+        required: true
+        type: string
+      working-directory:
+        description: "Working directory for the app (e.g., apps/pulse-publisher)"
+        required: true
+        type: string
+      output-key:
+        description: "CloudFormation output key for function name (e.g., PulsePublisherFunction)"
+        required: true
+        type: string
+      artefact-name:
+        description: "Name of the build artefact to download (e.g., pulse-build-artefacts)"
+        required: true
+        type: string
+    # Secrets are inherited from calling workflow using 'secrets: inherit'
+    # This allows repository-level secrets to be accessible
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.app-name }} to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    # Environment block enables environment protection and secret resolution
+    # Repository-level secrets are accessible from within environment-protected jobs
+    environment:
+      name: ${{ inputs.environment }}
+      url: https://ap-southeast-2.console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artefact-name }}
+          path: ${{ inputs.working-directory }}/dist/
+
+      # Authentication happens via OpenID Connect (OIDC)
+      # The role ARN is inherited from the calling workflow via secrets: inherit
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-2
+
+      - name: Validate SAM template
+        working-directory: ${{ inputs.working-directory }}
+        run: sam validate --lint
+
+      - name: Check stack exists
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          STACK_NAME="${{ inputs.app-name }}-$ENV"
+          if ! aws cloudformation describe-stacks --stack-name $STACK_NAME 2>/dev/null; then
+            echo "⚠️  WARNING: Stack does not exist. This is a CREATE operation."
+            echo "If deployment fails, stack will enter ROLLBACK_COMPLETE state."
+            echo "SAM will auto-delete the stack on failure to prevent stuck state."
+          else
+            echo "✓ Stack exists. This is an UPDATE operation."
+          fi
+
+      - name: SAM Build
+        working-directory: ${{ inputs.working-directory }}
+        run: sam build
+
+      - name: SAM Deploy
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          sam deploy \
+            --config-env $ENV \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --on-failure ROLLBACK \
+            --parameter-overrides Environment=$ENV
+
+      - name: Get deployment info
+        id: deployment-info
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          STACK_NAME="${{ inputs.app-name }}-$ENV"
+          FUNCTION_NAME=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='${{ inputs.output-key }}'].OutputValue" \
+            --output text)
+          echo "function-name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
+          echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+
+      - name: Health check - Invoke Lambda
+        run: |
+          RESPONSE=$(aws lambda invoke \
+            --function-name ${{ steps.deployment-info.outputs.function-name }} \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/response.json)
+
+          STATUS_CODE=$(echo $RESPONSE | jq -r '.StatusCode')
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Lambda invocation failed with status code: $STATUS_CODE"
+            exit 1
+          fi
+
+          echo "Lambda invoked successfully"
+          cat /tmp/response.json
+
+      - name: Monitor CloudWatch Alarms
+        run: |
+          echo "Waiting 2 minutes for CloudWatch metrics to populate..."
+          sleep 120
+
+          STACK_NAME="${{ steps.deployment-info.outputs.stack-name }}"
+          ALARMS=$(aws cloudwatch describe-alarms \
+            --alarm-name-prefix "${STACK_NAME}" \
+            --state-value ALARM \
+            --query 'MetricAlarms[*].[AlarmName,StateReason]' \
+            --output text)
+
+          if [ -n "$ALARMS" ]; then
+            echo "CloudWatch alarms in ALARM state detected:"
+            echo "$ALARMS"
+            echo "Deployment may have issues. Check CloudWatch console."
+            exit 1
+          fi
+
+          echo "No alarms triggered. Deployment successful."
+
+      - name: Clean up on failure
+        if: failure()
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          STACK_NAME="${{ inputs.app-name }}-$ENV"
+
+          # Get current stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Stack status: $STACK_STATUS"
+
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+            echo "⚠️  Stack in ROLLBACK_COMPLETE state. Deleting stack to enable future deployments..."
+            aws cloudformation delete-stack --stack-name $STACK_NAME
+            echo "Stack deletion initiated. Future deployments will recreate the stack."
+          elif [[ "$STACK_STATUS" =~ ^(UPDATE_FAILED|UPDATE_ROLLBACK_FAILED)$ ]]; then
+            echo "Update failed. Attempting to rollback to previous version..."
+            aws cloudformation rollback-stack --stack-name $STACK_NAME || echo "Rollback command failed, but stack may auto-recover"
+          elif [[ "$STACK_STATUS" == "DOES_NOT_EXIST" ]]; then
+            echo "Stack does not exist (CREATE operation failed). SAM should have auto-cleaned it."
+          else
+            echo "Stack in state: $STACK_STATUS. Manual intervention may be required."
+          fi
