@@ -22,7 +22,8 @@
       ],
       "Resource": [
         "arn:aws:cloudformation:ap-southeast-2:*:stack/heartbeat-publisher-*/*",
-        "arn:aws:cloudformation:ap-southeast-2:*:stack/pulse-publisher-*/*"
+        "arn:aws:cloudformation:ap-southeast-2:*:stack/pulse-publisher-*/*",
+        "arn:aws:cloudformation:ap-southeast-2:*:stack/aws-sam-cli-managed-default/*"
       ]
     },
     {
