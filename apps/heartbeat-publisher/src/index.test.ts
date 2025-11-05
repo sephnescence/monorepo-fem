@@ -114,7 +114,7 @@ describe("Lambda Handler - Heartbeat Publisher", () => {
       const publishedEvent = mockPublisher.getLastPublishedEvent();
       expect(publishedEvent).toBeDefined();
       expect(publishedEvent!.logEvent).toMatchObject({
-        message: "I wish for a heartbeat",
+        message: "I wish for a new heartbeat",
         source: "heartbeat-publisher",
         type: "heartbeat",
         timestamp: expect.any(String),

@@ -66,7 +66,7 @@ export async function handler(event: ScheduledEvent): Promise<void> {
 
     // Publish pulse log
     await publisher.publish({
-      message: "I wish for a pulse",
+      message: "I wish for a new pulse",
       timestamp: new Date().toISOString(),
       source: "pulse-publisher",
       type: "pulse",
