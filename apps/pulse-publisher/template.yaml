@@ -259,3 +259,8 @@ Resources:
         - Name: FunctionName
           Value: !Ref PulsePublisherFunction
       TreatMissingData: notBreaching
+
+Outputs:
+  PulsePublisherFunction:
+    Description: Name of the Pulse Publisher Lambda function
+    Value: !Ref PulsePublisherFunction
