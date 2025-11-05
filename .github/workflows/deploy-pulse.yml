@@ -58,7 +58,7 @@ jobs:
 
   # Job 2: Deploy pulse-publisher
   # This job calls the reusable deployment workflow
-  # Secrets are inherited from the repository/environment level
+  # AWS credentials are passed explicitly from repository secrets
   deploy:
     needs: build-and-test
     uses: ./.github/workflows/reusable-deploy-lambda.yml
@@ -68,4 +68,5 @@ jobs:
       working-directory: apps/pulse-publisher
       output-key: PulsePublisherFunction
       artefact-name: pulse-build-artefacts
-    secrets: inherit
+    secrets:
+      aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
