@@ -114,7 +114,7 @@ describe("Lambda Handler - Pulse Publisher", () => {
       const publishedEvent = mockPublisher.getLastPublishedEvent();
       expect(publishedEvent).toBeDefined();
       expect(publishedEvent!.logEvent).toMatchObject({
-        message: "I still have a pulse",
+        message: "I must have a pulse",
         source: "pulse-publisher",
         type: "pulse",
         timestamp: expect.any(String),

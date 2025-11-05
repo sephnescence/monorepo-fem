@@ -66,7 +66,7 @@ export async function handler(event: ScheduledEvent): Promise<void> {
 
     // Publish heartbeat log
     await publisher.publish({
-      message: "I still have a heartbeat",
+      message: "I must have a heartbeat",
       timestamp: new Date().toISOString(),
       source: "heartbeat-publisher",
       type: "heartbeat",
