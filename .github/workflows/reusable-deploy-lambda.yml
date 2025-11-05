@@ -117,6 +117,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           ENV="${{ inputs.environment }}"
+          STACK_NAME="${{ inputs.app-name }}-$ENV"
           sam deploy \
             --config-env $ENV \
             --no-confirm-changeset \
