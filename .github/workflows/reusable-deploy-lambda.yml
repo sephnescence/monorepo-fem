@@ -119,6 +119,7 @@ jobs:
           ENV="${{ inputs.environment }}"
           STACK_NAME="${{ inputs.app-name }}-$ENV"
           sam deploy \
+            --capabilities CAPABILITY_IAM \
             --config-env $ENV \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
