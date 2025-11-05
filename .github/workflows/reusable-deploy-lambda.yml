@@ -140,8 +140,17 @@ jobs:
             --stack-name $STACK_NAME \
             --query "Stacks[0].Outputs[?OutputKey=='${{ inputs.output-key }}'].OutputValue" \
             --output text)
+
+          if [ -z "$FUNCTION_NAME" ]; then
+            echo "❌ ERROR: Failed to retrieve function name from stack outputs"
+            echo "Stack: $STACK_NAME"
+            echo "Output key: ${{ inputs.output-key }}"
+            exit 1
+          fi
+
           echo "function-name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
           echo "stack-name=$STACK_NAME" >> $GITHUB_OUTPUT
+          echo "✓ Retrieved function name: $FUNCTION_NAME"
 
       - name: Health check - Invoke Lambda
         run: |
