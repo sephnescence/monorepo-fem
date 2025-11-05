@@ -61,3 +61,25 @@ If pnpm doesn't work out and you need to migrate to npm:
 3. Run `npm install` to generate a fresh `package-lock.json`
 
 Note: The current node_modules structure cannot be read by npm due to pnpm's symlink architecture. A clean slate is required for migration.
+
+**Using Claude:**
+
+.claude/settings.local.json isn't committed, so please ensure you make your own. e.g.
+
+```sh
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm test:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
+```
+
+Feel free to offer updates to this list
