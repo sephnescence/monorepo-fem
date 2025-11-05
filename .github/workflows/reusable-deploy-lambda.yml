@@ -49,14 +49,14 @@ on:
         description: "AWS OIDC role ARN for deployment authentication"
         required: true
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   deploy:
     name: Deploy ${{ inputs.app-name }} to ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    # OIDC requires id-token write permission for AWS authentication
-    permissions:
-      id-token: write
-      contents: read
     # Environment block enables environment protection and secret resolution
     # Repository-level secrets are accessible from within environment-protected jobs
     environment:
@@ -122,6 +122,7 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --on-failure ROLLBACK \
+            --stack-name $STACK_NAME \
             --parameter-overrides Environment=$ENV
 
       - name: Get deployment info
