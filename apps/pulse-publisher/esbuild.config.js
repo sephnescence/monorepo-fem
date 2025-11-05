@@ -13,18 +13,13 @@ if (!fs.existsSync(distDir)) {
 const buildConfig = {
   entryPoints: ['src/index.ts'],
   bundle: true,
-  outfile: 'dist/index.mjs',
+  outfile: 'dist/index.js',
   platform: 'node',
   target: 'node20',
-  format: 'esm',
+  format: 'cjs',
   minify: true,
   sourcemap: false,
   external: [],
-  banner: {
-    // Create a CommonJS-style require() function in ESM context
-    // This allows AWS SDK and other dependencies to use dynamic requires
-    js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
-  },
 };
 
 // Build

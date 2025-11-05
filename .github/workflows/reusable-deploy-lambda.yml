@@ -82,7 +82,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.artefact-name }}
-          path: ${{ inputs.working-directory }}/dist/
+          path: .
+
+      - name: Debug - Verify artifact structure
+        run: |
+          echo "=== Workspace root structure ==="
+          ls -la
+          echo ""
+          echo "=== Apps directory ==="
+          ls -la apps/ || echo "apps/ does not exist"
+          echo ""
+          echo "=== Working directory contents ==="
+          ls -laR ${{ inputs.working-directory }}
+          echo ""
+          echo "=== Looking for .mjs and .js files ==="
+          find . -type f \( -name "*.mjs" -o -name "*.js" \) | head -20
 
       # Authentication happens via OpenID Connect (OIDC)
       # The role ARN is explicitly passed from the calling workflow

@@ -1,3 +1,7 @@
+**/.aws-sam/
+**/coverage/
+
+
 # Logs
 logs
 *.log
