@@ -122,8 +122,11 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --on-failure ROLLBACK \
+            --parameter-overrides Environment=$ENV \
+            --region ap-southeast-2 \
             --stack-name $STACK_NAME \
-            --parameter-overrides Environment=$ENV
+            --s3_prefix $STACK_NAME \
+            --resolve_s3 true
 
       - name: Get deployment info
         id: deployment-info
