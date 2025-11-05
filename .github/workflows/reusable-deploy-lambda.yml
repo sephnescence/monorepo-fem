@@ -12,11 +12,12 @@
 #       working-directory: apps/pulse-publisher
 #       output-key: PulsePublisherFunction
 #       artefact-name: pulse-build-artefacts
-#     secrets: inherit
+#     secrets:
+#       aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
 #
 # Note: This workflow declares the environment block internally, which enables
 # environment protection and approvals (if configured in GitHub Settings).
-# Secrets are inherited from the calling workflow using 'secrets: inherit'.
+# Secrets are passed explicitly from the calling workflow for transparency.
 
 name: Reusable Lambda Deployment
 
@@ -43,8 +44,10 @@ on:
         description: "Name of the build artefact to download (e.g., pulse-build-artefacts)"
         required: true
         type: string
-    # Secrets are inherited from calling workflow using 'secrets: inherit'
-    # This allows repository-level secrets to be accessible
+    secrets:
+      aws-oidc-deploy-role-arn:
+        description: "AWS OIDC role ARN for deployment authentication"
+        required: true
 
 jobs:
   deploy:
@@ -78,11 +81,11 @@ jobs:
           path: ${{ inputs.working-directory }}/dist/
 
       # Authentication happens via OpenID Connect (OIDC)
-      # The role ARN is inherited from the calling workflow via secrets: inherit
+      # The role ARN is explicitly passed from the calling workflow
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.aws-oidc-deploy-role-arn }}
           aws-region: ap-southeast-2
 
       - name: Validate SAM template

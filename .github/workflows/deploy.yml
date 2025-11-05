@@ -161,7 +161,8 @@ jobs:
       working-directory: apps/heartbeat-publisher
       output-key: HeartbeatPublisherFunction
       artefact-name: build-artefacts
-    secrets: inherit
+    secrets:
+      aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
 
   # Job 4: Deploy pulse-publisher
   # This job calls the reusable deployment workflow
@@ -175,7 +176,8 @@ jobs:
       working-directory: apps/pulse-publisher
       output-key: PulsePublisherFunction
       artefact-name: build-artefacts
-    secrets: inherit
+    secrets:
+      aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
 
   # Job 5: Summary
   deployment-summary:
