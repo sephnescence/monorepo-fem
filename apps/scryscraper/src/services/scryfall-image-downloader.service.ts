@@ -8,7 +8,7 @@
  * placeholder implementations. To fully activate:
  * 1. Uncomment S3Client initialisation in constructor
  * 2. Uncomment actual download and upload logic in methods
- * 3. Set SCRYSCRAPER_S3_BUCKET_NAME environment variable
+ * 3. Set SCRYSCRAPER_CACHE_BUCKET environment variable
  *
  * Scryfall Image Formats:
  * - png: High-resolution PNG (best quality)
@@ -100,13 +100,13 @@ export class ImageDownloaderService {
   private bucketPrefix: string
   // private s3Client: S3Client // Uncomment when AWS SDK is added
 
-  constructor(bucketName?: string, bucketPrefix: string = 'cards/images') {
-    this.bucketName = bucketName || process.env.SCRYSCRAPER_S3_BUCKET_NAME || ''
+  constructor(bucketName?: string, bucketPrefix: string = 'images') {
+    this.bucketName = bucketName || process.env.SCRYSCRAPER_CACHE_BUCKET || ''
     this.bucketPrefix = bucketPrefix
 
     if (!this.bucketName) {
       console.warn(
-        'S3 bucket name not configured. Set SCRYSCRAPER_S3_BUCKET_NAME environment variable.'
+        'S3 bucket name not configured. Set SCRYSCRAPER_CACHE_BUCKET environment variable.'
       )
     }
 

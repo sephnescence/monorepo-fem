@@ -73,7 +73,7 @@ export class ScryscraperService {
   private generateCacheKey(url: string): string {
     const normalisedUrl = url.toLowerCase().trim()
     const hash = createHash('sha256').update(normalisedUrl).digest('hex')
-    return 'scryfall-cache/' + hash + '.json'
+    return 'api/' + hash + '.json'
   }
 
   /**
