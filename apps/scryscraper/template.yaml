@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: "2010-09-09"
+AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Scryscraper Lambda that fetches MTG card data from Scryfall API and stores it in DynamoDB and S3
 
@@ -91,7 +91,7 @@ Resources:
     Properties:
       RoleName: !Sub scryscraper-lambda-role-${Environment}
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
@@ -102,7 +102,7 @@ Resources:
       Policies:
         - PolicyName: ScryScraperS3Access
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
@@ -116,7 +116,7 @@ Resources:
                 Resource: !GetAtt ScryScraperCacheBucket.Arn
         - PolicyName: ScryScraperDynamoDBAccess
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
@@ -223,7 +223,7 @@ Resources:
       MetricTransformations:
         - MetricName: ScryfallRateLimitHit
           MetricNamespace: !Sub Scryscraper/${Environment}
-          MetricValue: "1"
+          MetricValue: '1'
           DefaultValue: 0
 
   # CloudWatch Alarm for 429 rate limit errors

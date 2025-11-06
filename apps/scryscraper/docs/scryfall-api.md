@@ -9,7 +9,7 @@ The Scryfall API is accessible at `https://api.scryfall.com` and is only served 
 All requests must include:
 
 - **User-Agent**: Should accurately reflect your application (e.g., `scryscraper/1.0`)
-- **Accept**: `application/json` is preferred, though generic values like `*/*` or `application/json;q=0.9,*/*;q=0.8` also work
+- **Accept**: `application/json` is preferred
 
 ## Rate Limiting
 
