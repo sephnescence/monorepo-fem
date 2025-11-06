@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Heartbeat publisher Lambda that publishes heartbeats to CloudWatch Logs every minute via EventBridge
+Description: Scryscraper Lambda that fetches MTG card data from Scryfall API and stores it in DynamoDB and S3
 
 Parameters:
   Environment:
@@ -19,212 +19,146 @@ Conditions:
 
 Globals:
   Function:
-    Timeout: 4
-    MemorySize: 128
+    Timeout: 30
+    MemorySize: 512
     Runtime: nodejs20.x
     Architectures:
       - arm64
 
 Resources:
-  # CONDITIONAL RESOURCES NOTE:
-  # The following two log group resources (HeartbeatsLogGroupDelete and HeartbeatsLogGroupRetain)
-  # share the same LogGroupName but have mutually exclusive conditions.
-  # CloudFormation will only create ONE of them based on the Environment parameter:
-  # - If Environment=exp: Only HeartbeatsLogGroupDelete is created (with DeletionPolicy: Delete)
-  # - If Environment=dev/staging/prod: Only HeartbeatsLogGroupRetain is created (with DeletionPolicy: Retain)
-  # This pattern allows different deletion policies per environment while maintaining the same log group name.
+  # S3 Bucket for caching Scryfall API responses
+  ScryScraperCacheBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: !If [IsExpEnvironment, Delete, Retain]
+    UpdateReplacePolicy: !If [IsExpEnvironment, Delete, Retain]
+    Properties:
+      BucketName: !Sub monorepo-fem-scryscraper-cache-${Environment}
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
-  # CloudWatch Log Group where heartbeat logs will be published (for exp environment - with Delete policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatsLogGroupDelete:
+  # DynamoDB Table for storing MTG card data
+  ScryScraperTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: !If [IsExpEnvironment, Delete, Retain]
+    UpdateReplacePolicy: !If [IsExpEnvironment, Delete, Retain]
+    Properties:
+      TableName: !Sub monorepo-fem-scryscraper-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+  # Lambda's execution log group (exp environment with Delete policy)
+  ScryScraperLogGroupDelete:
     Type: AWS::Logs::LogGroup
     Condition: IsExpEnvironment
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: !Sub /monorepo-fem/heartbeats-${Environment}
-      RetentionInDays: 1
+      LogGroupName: !Sub /aws/lambda/scryscraper-${Environment}
+      RetentionInDays: 7
 
-  # CloudWatch Log Group where heartbeat logs will be published (for non-exp environments - with Retain policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatsLogGroupRetain:
+  # Lambda's execution log group (non-exp environments with Retain policy)
+  ScryScraperLogGroupRetain:
     Type: AWS::Logs::LogGroup
     Condition: IsNotExpEnvironment
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      LogGroupName: !Sub /monorepo-fem/heartbeats-${Environment}
-      RetentionInDays: 1
-
-  # CONDITIONAL RESOURCES NOTE (same pattern as above):
-  # The following two log group resources share the same LogGroupName with mutually exclusive conditions.
-  # Only ONE will be created based on Environment parameter (exp=Delete, others=Retain).
-
-  # Lambda's own execution log group (for monitoring the Lambda itself - exp environment with Delete policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatPublisherLogGroupDelete:
-    Type: AWS::Logs::LogGroup
-    Condition: IsExpEnvironment
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
+      LogGroupName: !Sub /aws/lambda/scryscraper-${Environment}
       RetentionInDays: 7
 
-  # Lambda's own execution log group (for monitoring the Lambda itself - non-exp environments with Retain policy)
-  # Created BEFORE the Lambda to ensure CloudFormation owns it
-  HeartbeatPublisherLogGroupRetain:
-    Type: AWS::Logs::LogGroup
-    Condition: IsNotExpEnvironment
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+  # IAM Role for Lambda Function
+  ScryScraperFunctionRole:
+    Type: AWS::IAM::Role
     Properties:
-      LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
-      RetentionInDays: 7
+      RoleName: !Sub scryscraper-lambda-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ScryScraperS3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:HeadObject
+                Resource: !Sub ${ScryScraperCacheBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt ScryScraperCacheBucket.Arn
+        - PolicyName: ScryScraperDynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt ScryScraperTable.Arn
+                  - !Sub ${ScryScraperTable.Arn}/index/*
 
-  # Lambda Function that publishes logs
-  HeartbeatPublisherFunction:
+  # Lambda Function
+  ScryScraperFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub heartbeat-publisher-${Environment}
-      Description: Publishes heartbeat logs to CloudWatch on a schedule
+      FunctionName: !Sub scryscraper-${Environment}
+      Description: Fetches MTG card data from Scryfall API and stores it in DynamoDB and S3
       CodeUri: dist/
       Handler: index.handler
+      Role: !GetAtt ScryScraperFunctionRole.Arn
       Environment:
         Variables:
-          LOG_GROUP_NAME:
-            !If [
-              IsExpEnvironment,
-              !Ref HeartbeatsLogGroupDelete,
-              !Ref HeartbeatsLogGroupRetain,
-            ]
-          LOG_STREAM_PREFIX: heartbeat
           NODE_ENV: !Ref Environment
-      Policies:
-        - Version: "2012-10-17"
-          Statement:
-            - Effect: Allow
-              Action:
-                - logs:CreateLogStream
-                - logs:PutLogEvents
-              Resource:
-                !If [
-                  IsExpEnvironment,
-                  !GetAtt HeartbeatsLogGroupDelete.Arn,
-                  !GetAtt HeartbeatsLogGroupRetain.Arn,
-                ]
+          S3_CACHE_BUCKET: !Ref ScryScraperCacheBucket
+          DYNAMODB_TABLE: !Ref ScryScraperTable
       Events:
         ScheduledEvent:
           Type: Schedule
           Properties:
             Schedule: rate(1 minute)
-            Name: !Sub heartbeat-publisher-schedule-${Environment}
-            Description: Triggers Heartbeat Publisher every minute
+            Name: !Sub scryscraper-schedule-${Environment}
+            Description: Triggers Scryscraper every minute
             Enabled: true
 
-  # CloudWatch Dashboard for monitoring the heartbeat publisher
-  # Viewable from https://ap-southeast-2.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-2#dashboards/dashboard/heartbeat-publisher-dev?start=PT24H&end=null
-  HeartbeatPublisherDashboard:
-    Type: AWS::CloudWatch::Dashboard
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      DashboardName: !Sub heartbeat-publisher-${Environment}
-      DashboardBody: !Sub |
-        {
-          "widgets": [
-            {
-              "type": "explorer",
-              "x": 0,
-              "y": 0,
-              "width": 24,
-              "height": 15,
-              "properties": {
-                "metrics": [
-                  {
-                    "metricName": "Invocations",
-                    "resourceType": "AWS::Lambda::Function",
-                    "stat": "Sum"
-                  }
-                ],
-                "labels": [
-                  {
-                    "key": "aws:cloudformation:stack-name",
-                    "value": "${AWS::StackName}"
-                  }
-                ],
-                "widgetOptions": {
-                  "legend": {
-                    "position": "hidden"
-                  },
-                  "view": "timeSeries",
-                  "stacked": true,
-                  "rowsPerPage": 50,
-                  "widgetsPerRow": 1
-                },
-                "period": 3600,
-                "splitBy": "",
-                "region": "${AWS::Region}",
-                "title": "Lambda Invocations"
-              }
-            },
-            {
-              "type": "metric",
-              "x": 0,
-              "y": 15,
-              "width": 12,
-              "height": 6,
-              "properties": {
-                "metrics": [
-                  ["AWS/Lambda", "Errors", {"stat": "Sum", "label": "Errors"}],
-                  [".", "Throttles", {"stat": "Sum", "label": "Throttles"}]
-                ],
-                "view": "timeSeries",
-                "stacked": false,
-                "region": "${AWS::Region}",
-                "title": "Lambda Errors and Throttles",
-                "period": 300,
-                "yAxis": {
-                  "left": {
-                    "min": 0
-                  }
-                }
-              }
-            },
-            {
-              "type": "metric",
-              "x": 12,
-              "y": 15,
-              "width": 12,
-              "height": 6,
-              "properties": {
-                "metrics": [
-                  ["AWS/Lambda", "Duration", {"stat": "Average", "label": "Avg Duration"}],
-                  ["...", {"stat": "Maximum", "label": "Max Duration"}]
-                ],
-                "view": "timeSeries",
-                "stacked": false,
-                "region": "${AWS::Region}",
-                "title": "Lambda Duration",
-                "period": 300,
-                "yAxis": {
-                  "left": {
-                    "min": 0
-                  }
-                }
-              }
-            }
-          ]
-        }
-
   # CloudWatch Alarm for Lambda Errors
-  HeartbeatPublisherErrorAlarm:
+  ScryScraperErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      AlarmName: !Sub heartbeat-publisher-errors-${Environment}
-      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function encounters errors
+      AlarmName: !Sub scryscraper-errors-${Environment}
+      AlarmDescription: Alerts when the Scryscraper Lambda function encounters errors
       MetricName: Errors
       Namespace: AWS/Lambda
       Statistic: Sum
@@ -234,17 +168,17 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref HeartbeatPublisherFunction
+          Value: !Ref ScryScraperFunction
       TreatMissingData: notBreaching
 
   # CloudWatch Alarm for Lambda Throttles
-  HeartbeatPublisherThrottleAlarm:
+  ScryScraperThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      AlarmName: !Sub heartbeat-publisher-throttles-${Environment}
-      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function is throttled
+      AlarmName: !Sub scryscraper-throttles-${Environment}
+      AlarmDescription: Alerts when the Scryscraper Lambda function is throttled
       MetricName: Throttles
       Namespace: AWS/Lambda
       Statistic: Sum
@@ -254,30 +188,68 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref HeartbeatPublisherFunction
+          Value: !Ref ScryScraperFunction
       TreatMissingData: notBreaching
 
   # CloudWatch Alarm for Lambda Duration approaching timeout
-  HeartbeatPublisherDurationAlarm:
+  ScryScraperDurationAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      AlarmName: !Sub heartbeat-publisher-duration-${Environment}
-      AlarmDescription: Alerts when the Heartbeat Publisher Lambda function duration exceeds 80% of timeout (3.2s of 4s)
+      AlarmName: !Sub scryscraper-duration-${Environment}
+      AlarmDescription: Alerts when the Scryscraper Lambda function duration exceeds 80% of timeout (24s of 30s)
       MetricName: Duration
       Namespace: AWS/Lambda
       Statistic: Maximum
       Period: 300
       EvaluationPeriods: 2
-      Threshold: 3200
+      Threshold: 24000
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref HeartbeatPublisherFunction
+          Value: !Ref ScryScraperFunction
+      TreatMissingData: notBreaching
+
+  # Log Metric Filter for 429 errors (Scryfall rate limiting)
+  RateLimitMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: '"429"'
+      LogGroupName: !If
+        - IsExpEnvironment
+        - !Ref ScryScraperLogGroupDelete
+        - !Ref ScryScraperLogGroupRetain
+      MetricTransformations:
+        - MetricName: ScryfallRateLimitHit
+          MetricNamespace: !Sub Scryscraper/${Environment}
+          MetricValue: "1"
+          DefaultValue: 0
+
+  # CloudWatch Alarm for 429 rate limit errors
+  RateLimitAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AlarmName: !Sub scryscraper-rate-limit-${Environment}
+      AlarmDescription: Alerts when Scryscraper encounters Scryfall API rate limiting (HTTP 429)
+      MetricName: ScryfallRateLimitHit
+      Namespace: !Sub Scryscraper/${Environment}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
 
 Outputs:
-  HeartbeatPublisherFunction:
-    Description: Name of the Heartbeat Publisher Lambda function
-    Value: !Ref HeartbeatPublisherFunction
+  ScryScraperFunction:
+    Description: Name of the Scryscraper Lambda function
+    Value: !Ref ScryScraperFunction
+  ScryScraperCacheBucket:
+    Description: Name of the S3 cache bucket
+    Value: !Ref ScryScraperCacheBucket
+  ScryScraperTable:
+    Description: Name of the DynamoDB table
+    Value: !Ref ScryScraperTable

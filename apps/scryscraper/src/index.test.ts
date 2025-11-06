@@ -1,6 +1,9 @@
-import { MockCloudWatchLogPublisher } from '@monorepo-fem/cloudwatch-log-publisher/testing'
 import type { ScheduledEvent } from 'aws-lambda'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import type {
+  ScryScraperResult,
+  ScryScraperService,
+} from './services/scryfall-scraper.service.js'
 
 // Load the example set response
 const exampleSetResponse = {
@@ -24,59 +27,38 @@ const exampleSetResponse = {
   icon_svg_uri: 'https://svgs.scryfall.io/sets/tla.svg?1762146000',
 }
 
-// Mock the cloudwatch-log-publisher module
-let mockPublisherInstance: MockCloudWatchLogPublisher | null = null
-let pendingPublishError: Error | null = null
+// Mock the scryfall-scraper service
+let mockGetSetResult: ScryScraperResult = {
+  data: exampleSetResponse,
+  fromCache: false,
+}
+let mockGetSetError: Error | null = null
 
-vi.mock('@monorepo-fem/cloudwatch-log-publisher', () => {
+const mockGetSet = vi.fn(
+  async (): Promise<ScryScraperResult> => {
+    if (mockGetSetError) {
+      throw mockGetSetError
+    }
+    return mockGetSetResult
+  }
+)
+
+const mockCreateScryScraperService = vi.fn(
+  (): ScryScraperService => {
+    return {
+      getSet: mockGetSet,
+    } as ScryScraperService
+  }
+)
+
+vi.mock('./services/scryfall-scraper.service.js', () => {
   return {
-    CloudWatchLogPublisher: class MockedCloudWatchLogPublisher {
-      constructor(config: any) {
-        mockPublisherInstance = new MockCloudWatchLogPublisher(config)
-        // Apply any pending error
-        if (pendingPublishError) {
-          mockPublisherInstance.setPublishError(pendingPublishError)
-        }
-        return mockPublisherInstance as any
-      }
-    },
+    createScryScraperService: mockCreateScryScraperService,
   }
 })
-
-// Mock global fetch
-let mockFetchResponse: any = exampleSetResponse
-let mockFetchError: Error | null = null
-
-const defaultFetchMock = vi.fn(async (url: string) => {
-  if (mockFetchError) {
-    throw mockFetchError
-  }
-
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    json: async () => mockFetchResponse,
-  } as Response
-})
-
-global.fetch = defaultFetchMock
 
 // Import the handler after mocking
 const { handler } = await import('./index.js')
-
-// Helper to get the mock publisher instance
-function getMockPublisher(): MockCloudWatchLogPublisher {
-  if (!mockPublisherInstance) {
-    throw new Error('Mock publisher instance not available')
-  }
-  return mockPublisherInstance
-}
-
-// Helper to set an error that will be applied to the next mock instance created
-function setPendingPublishError(error: Error): void {
-  pendingPublishError = error
-}
 
 describe('Lambda Handler - Scryscraper', () => {
   // Store original env vars
@@ -86,55 +68,34 @@ describe('Lambda Handler - Scryscraper', () => {
     // Reset environment variables
     process.env = {
       ...originalEnv,
-      LOG_GROUP_NAME: '/test/scryscraper',
-      LOG_STREAM_PREFIX: 'test-stream',
+      S3_CACHE_BUCKET: 'test-cache-bucket',
       SCRYFALL_SET_CODE: 'tla',
     }
 
-    // Reset fetch mocks
-    mockFetchResponse = exampleSetResponse
-    mockFetchError = null
-    global.fetch = defaultFetchMock
+    // Reset service mocks
+    mockGetSetResult = {
+      data: exampleSetResponse,
+      fromCache: false,
+    }
+    mockGetSetError = null
 
-    // Clear console spies
+    // Clear mock calls
     vi.clearAllMocks()
   })
 
   afterEach(() => {
-    // Clear any mock publisher errors
-    pendingPublishError = null
-    try {
-      const mockPublisher = getMockPublisher()
-      if (mockPublisher) {
-        mockPublisher.clearPublishError()
-        mockPublisher.clearPublishedEvents()
-      }
-    } catch {
-      // Ignore if no mock instance exists
-    }
-
     // Restore original environment
     process.env = originalEnv
   })
 
   describe('Environment Validation', () => {
-    it('should throw error when LOG_GROUP_NAME is missing', async () => {
-      delete process.env.LOG_GROUP_NAME
+    it('should throw error when S3_CACHE_BUCKET is missing', async () => {
+      delete process.env.S3_CACHE_BUCKET
 
       const event = createMockScheduledEvent()
 
       await expect(handler(event)).rejects.toThrow(
-        'Missing required environment variable: LOG_GROUP_NAME'
-      )
-    })
-
-    it('should throw error when LOG_STREAM_PREFIX is missing', async () => {
-      delete process.env.LOG_STREAM_PREFIX
-
-      const event = createMockScheduledEvent()
-
-      await expect(handler(event)).rejects.toThrow(
-        'Missing required environment variable: LOG_STREAM_PREFIX'
+        'Missing required environment variable: S3_CACHE_BUCKET'
       )
     })
 
@@ -153,146 +114,102 @@ describe('Lambda Handler - Scryscraper', () => {
 
       await expect(handler(event)).resolves.not.toThrow()
 
-      // Verify that publisher was configured correctly
-      const mockPublisher = getMockPublisher()
-      expect(mockPublisher.getLogGroupName()).toBe('/test/scryscraper')
-      expect(mockPublisher.getLogStreamPrefix()).toBe('test-stream')
+      // Verify that service was created with correct config
+      expect(mockCreateScryScraperService).toHaveBeenCalledWith({
+        s3BucketName: 'test-cache-bucket',
+        userAgent: 'scryscraper/1.0',
+      })
     })
   })
 
-  describe('Scryfall API Integration', () => {
-    it('should fetch and validate set data from Scryfall API', async () => {
+  describe('Scryfall Service Integration', () => {
+    it('should fetch and validate set data using the scraper service', async () => {
       const event = createMockScheduledEvent()
       await handler(event)
 
-      // Verify fetch was called with correct URL and headers
-      expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.scryfall.com/sets/tla',
-        expect.objectContaining({
-          headers: {
-            'User-Agent': 'scryscraper/1.0',
-            Accept: 'application/json',
-          },
-        })
-      )
-
-      // Verify data was published
-      const mockPublisher = getMockPublisher()
-      expect(mockPublisher.getPublishedEventCount()).toBe(1)
-
-      const publishedEvent = mockPublisher.getLastPublishedEvent()
-      expect(publishedEvent).toBeDefined()
-      expect(publishedEvent!.logEvent).toMatchObject({
-        message: 'Scryfall set data fetched successfully',
-        source: 'scryscraper',
-        type: 'scryfall_set',
-        setCode: 'tla',
-        setName: 'Avatar: The Last Airbender',
-        cardCount: 358,
-        releasedAt: '2025-11-21',
-        setType: 'expansion',
-        timestamp: expect.any(String),
+      // Verify service was created
+      expect(mockCreateScryScraperService).toHaveBeenCalledWith({
+        s3BucketName: 'test-cache-bucket',
+        userAgent: 'scryscraper/1.0',
       })
+
+      // Verify getSet was called with correct set code
+      expect(mockGetSet).toHaveBeenCalledWith('tla')
     })
 
-    it('should handle API request failures', async () => {
-      // Mock a failed API response
-      global.fetch = vi.fn(async () => ({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-        json: async () => ({}),
-      })) as any
-
-      const event = createMockScheduledEvent()
-
-      await expect(handler(event)).rejects.toThrow(
-        'Scryfall API request failed: 404 Not Found'
-      )
-    })
-
-    it('should handle network errors', async () => {
-      mockFetchError = new Error('Network error')
-
-      const event = createMockScheduledEvent()
-
-      await expect(handler(event)).rejects.toThrow('Network error')
-    })
-
-    it('should validate API response schema', async () => {
-      // Mock an invalid response that doesn't match the schema
-      mockFetchResponse = {
-        object: 'invalid',
-        // Missing required fields
+    it('should handle cache hit scenarios', async () => {
+      mockGetSetResult = {
+        data: exampleSetResponse,
+        fromCache: true,
+        cacheAge: 1000 * 60 * 30, // 30 minutes
       }
 
       const event = createMockScheduledEvent()
+      const consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {})
 
-      await expect(handler(event)).rejects.toThrow(
-        'Invalid API response schema'
-      )
-    })
-  })
+      await handler(event)
 
-  describe('Schema Validation', () => {
-    it('should accept valid set response', async () => {
-      const event = createMockScheduledEvent()
+      expect(consoleLogSpy).toHaveBeenCalledWith('Cache status: HIT')
+      expect(consoleLogSpy).toHaveBeenCalledWith('Cache age: 30 minutes')
 
-      await expect(handler(event)).resolves.not.toThrow()
-
-      const mockPublisher = getMockPublisher()
-      const publishedEvent = mockPublisher.getLastPublishedEvent()
-      expect(publishedEvent!.logEvent.setCode).toBe('tla')
+      consoleLogSpy.mockRestore()
     })
 
-    it('should reject response with invalid object type', async () => {
-      mockFetchResponse = {
-        ...exampleSetResponse,
-        object: 'card', // Invalid - should be "set"
+    it('should handle cache miss scenarios', async () => {
+      mockGetSetResult = {
+        data: exampleSetResponse,
+        fromCache: false,
       }
 
       const event = createMockScheduledEvent()
+      const consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {})
 
-      await expect(handler(event)).rejects.toThrow(
-        'Invalid API response schema'
-      )
+      await handler(event)
+
+      expect(consoleLogSpy).toHaveBeenCalledWith('Cache status: MISS')
+
+      consoleLogSpy.mockRestore()
     })
 
-    it('should reject response missing required fields', async () => {
-      mockFetchResponse = {
-        object: 'set',
-        // Missing other required fields
-      }
+    it('should handle service errors', async () => {
+      mockGetSetError = new Error('Service error')
+
+      const event = createMockScheduledEvent()
+
+      await expect(handler(event)).rejects.toThrow('Service error')
+    })
+
+    it('should handle Scryfall API errors (404)', async () => {
+      mockGetSetError = new Error('Set not found: invalid')
+
+      const event = createMockScheduledEvent()
+
+      await expect(handler(event)).rejects.toThrow('Set not found: invalid')
+    })
+
+    it('should handle Scryfall API rate limiting (429)', async () => {
+      mockGetSetError = new Error(
+        'Scryfall API rate limit exceeded for set tla'
+      )
 
       const event = createMockScheduledEvent()
 
       await expect(handler(event)).rejects.toThrow(
-        'Invalid API response schema'
+        'Scryfall API rate limit exceeded for set tla'
       )
     })
 
-    it('should reject response with invalid date format', async () => {
-      mockFetchResponse = {
-        ...exampleSetResponse,
-        released_at: 'invalid-date',
-      }
+    it('should handle validation errors', async () => {
+      mockGetSetError = new Error('Invalid Scryfall API response for set tla')
 
       const event = createMockScheduledEvent()
 
       await expect(handler(event)).rejects.toThrow(
-        'Invalid API response schema'
-      )
-    })
-  })
-
-  describe('Publisher Integration', () => {
-    it('should propagate publisher errors', async () => {
-      // Set error before creating the mock instance
-      setPendingPublishError(new Error('CloudWatch service unavailable'))
-
-      const event = createMockScheduledEvent()
-      await expect(handler(event)).rejects.toThrow(
-        'CloudWatch service unavailable'
+        'Invalid Scryfall API response for set tla'
       )
     })
   })
@@ -303,9 +220,7 @@ describe('Lambda Handler - Scryscraper', () => {
 
       await expect(handler(event)).resolves.not.toThrow()
 
-      // Verify event was published
-      const mockPublisher = getMockPublisher()
-      expect(mockPublisher.getPublishedEventCount()).toBe(1)
+      expect(mockGetSet).toHaveBeenCalledTimes(1)
     })
 
     it('should handle EventBridge scheduled event structure', async () => {
@@ -325,6 +240,24 @@ describe('Lambda Handler - Scryscraper', () => {
 
       await expect(handler(event)).resolves.not.toThrow()
     })
+
+    it('should log set information', async () => {
+      const event = createMockScheduledEvent()
+      const consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {})
+
+      await handler(event)
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Successfully fetched set: Avatar: The Last Airbender (tla)'
+      )
+      expect(consoleLogSpy).toHaveBeenCalledWith('Card count: 358')
+      expect(consoleLogSpy).toHaveBeenCalledWith('Released: 2025-11-21')
+      expect(consoleLogSpy).toHaveBeenCalledWith('Set type: expansion')
+
+      consoleLogSpy.mockRestore()
+    })
   })
 
   describe('Error Handling', () => {
@@ -333,7 +266,7 @@ describe('Lambda Handler - Scryscraper', () => {
         .spyOn(console, 'error')
         .mockImplementation(() => {})
 
-      mockFetchError = new Error('Test error')
+      mockGetSetError = new Error('Test error')
 
       const event = createMockScheduledEvent()
       await expect(handler(event)).rejects.toThrow('Test error')
@@ -347,7 +280,7 @@ describe('Lambda Handler - Scryscraper', () => {
     })
 
     it('should re-throw errors for Lambda retry logic', async () => {
-      mockFetchError = new Error('Service error')
+      mockGetSetError = new Error('Service error')
 
       const event = createMockScheduledEvent()
 

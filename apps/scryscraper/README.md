@@ -1,39 +1,37 @@
-# Heartbeat Publisher
+# Scryscraper
 
-AWS Lambda function that publishes heartbeat logs to CloudWatch Logs on a scheduled basis using EventBridge.
+AWS Lambda function that fetches Magic: The Gathering card data from the Scryfall API and stores it in DynamoDB and S3.
 
 ## What This Lambda Does
 
 This Lambda function:
 
 - Runs on a schedule (default: every 1 minute) triggered by EventBridge
-- Creates a timestamped log stream in a CloudWatch log group
-- Publishes structured JSON heartbeat logs with timestamp and metadata
-- Provides observability for testing scheduled Lambda execution and CloudWatch Logs integration
+- Fetches MTG set and card data from Scryfall API
+- Implements 24-hour caching in S3 to respect Scryfall's data usage guidelines
+- Stores card data in DynamoDB for efficient querying
+- Logs 429 rate limit errors with CloudWatch alarms
+- Respects Scryfall's 50-100ms rate limiting requirement
 
-## Architecture Decision: SAM over Docker
+## Architecture
 
-**Why AWS SAM + Lambda instead of Docker containers?**
+### Components
 
-### Cost
+1. **Lambda Function** - Orchestrates data fetching and storage
+2. **S3 Bucket** - Caches Scryfall API responses (24-hour TTL)
+3. **DynamoDB Table** - Stores normalised card and set data
+4. **CloudWatch Logs** - Execution logs and error tracking
+5. **CloudWatch Alarms** - Monitoring for errors, throttles, and rate limits
+6. **EventBridge Schedule** - Triggers Lambda execution
 
-- **Lambda**: Pay only for execution time (per-second billing). At 1 execution/minute with ~500ms execution time, this costs very little per month
-- **Docker**: Continuous container runtime costs (EC2, ECS, or Fargate) even when idle
+### Data Flow
 
-### Scalability
-
-- **Lambda**: AWS manages runtime, automatic scaling, no orchestration needed
-- **Docker**: Requires container orchestration (ECS, EKS) or manual EC2 management
-
-### Maintenance
-
-- **Lambda**: No Docker image updates, AWS maintains Node.js runtime and security patches
-- **Docker**: Must maintain base images, rebuild for security patches, manage container registry
-
-### Native AWS Integration
-
-- **Lambda**: EventBridge scheduling built-in, IAM permissions granular and scoped
-- **Docker**: Requires cron daemon, additional complexity for AWS service integration
+1. Lambda checks S3 cache for recent Scryfall data
+2. If cache is fresh (< 24 hours), use cached data
+3. If cache is stale or missing, fetch from Scryfall API
+4. Store response in S3 for future requests
+5. Parse and normalise data
+6. Store in DynamoDB for querying
 
 ## Prerequisites
 
@@ -45,18 +43,22 @@ This Lambda function:
 ## Project Structure
 
 ```sh
-heartbeat-publisher/
+scryscraper/
 ├── src/
-│   └── index.ts              # Lambda handler implementation
-├── events/
-│   └── eventbridge-event.json # Sample EventBridge event for testing
-├── dist/                      # Built output (generated)
-│   └── index.mjs             # Bundled Lambda code
-├── .aws-sam/                  # SAM build artifacts (generated)
-├── package.json               # Dependencies and build scripts
-├── tsconfig.json             # TypeScript configuration
-├── template.yaml             # AWS SAM infrastructure definition
-└── README.md                 # This file
+│   ├── index.ts                    # Lambda handler
+│   ├── index.test.ts              # Handler tests
+│   ├── services/
+│   │   ├── scryfall-scraper.service.ts       # Scryfall API client with caching
+│   │   └── scryfall-image-downloader.service.ts  # Image downloader (future)
+│   └── schemas/
+│       └── set.schema.ts           # Zod validation schemas
+├── docs/
+│   ├── scryfall-api.md            # Scryfall API documentation
+│   └── example-set-response.json  # Example API response
+├── dist/                           # Built output (generated)
+├── template.yaml                   # AWS SAM infrastructure
+├── samconfig.toml                  # SAM deployment configuration
+└── README.md                       # This file
 ```
 
 ## How to Build
@@ -73,495 +75,169 @@ heartbeat-publisher/
    pnpm run build
    ```
 
-   This runs `esbuild.config.js` which:
-   - Compiles TypeScript to JavaScript
-   - Bundles all dependencies
-   - Outputs to `dist/index.mjs` (ESM format)
-   - Adds CommonJS require shim for AWS SDK compatibility
-
 3. **Verify the build output:**
 
    ```sh
    ls -lh dist/
-   node dist/index.mjs  # Test the built code directly (requires AWS credentials)
    ```
 
 ## How to Deploy
 
-**IMPORTANT**: Always run `pnpm run build` before deploying. SAM will package the pre-built code from `dist/`.
+**IMPORTANT**: Always run `pnpm run build` before deploying.
 
 ### First-Time Deployment (Guided)
 
 ```sh
-pnpm run build  # Build first!
-sam build       # Package the built code
+pnpm run build
+sam build
 sam deploy --guided
 ```
 
 You'll be prompted for:
 
-- **Stack Name**: e.g., `heartbeat-publisher-dev`
+- **Stack Name**: e.g., `scryscraper-dev`
 - **AWS Region**: e.g., `ap-southeast-2`
-- **Environment**: `dev`, `staging`, or `prod`
-- **ScheduleRate**: e.g., `rate(1 minute)`
-- **LogRetentionDays**: e.g., `7`
-- **Confirm changes**: Review CloudFormation changeset before deploying
-- **Allow SAM CLI IAM role creation**: Yes (required for Lambda execution role)
-- **Save arguments to samconfig.toml**: Yes (for subsequent deployments)
+- **Environment**: `dev`, `staging`, `prod`, or `exp`
 
 ### Subsequent Deployments
 
-After the first deployment, run:
-
 ```sh
-pnpm run build  # Build first!
-sam build       # Package the built code
-sam deploy      # Deploy using samconfig.toml
+pnpm run build
+sam build
+sam deploy
 ```
-
-Parameters will be read from `samconfig.toml`.
 
 ## Resources Created
 
-This SAM template creates the following AWS resources:
+This SAM template creates:
 
-1. **Lambda Function** (`CloudWatchPublisherFunction`)
-
-   - Runtime: Node.js 20.x (ARM64 architecture)
+1. **Lambda Function** (`scryscraper-{env}`)
+   - Runtime: Node.js 20.x (ARM64)
    - Timeout: 30 seconds
-   - Memory: 256 MB
-   - Triggered by EventBridge schedule
+   - Memory: 512 MB
 
-2. **EventBridge Schedule Rule** (`PublisherSchedule`)
+2. **S3 Bucket** (`monorepo-fem-scryscraper-cache-{env}`)
+   - Versioning enabled
+   - Caches Scryfall API responses
 
-   - Default: `rate(1 minute)`
-   - Configurable via `ScheduleRate` parameter
-   - Automatically enabled on deployment
+3. **DynamoDB Table** (`monorepo-fem-scryscraper-{env}`)
+   - Pay-per-request billing
+   - Partition key: `pk`, Sort key: `sk`
 
-3. **Target CloudWatch Log Group** (`HeartbeatLogGroup`)
+4. **CloudWatch Log Group** (`/aws/lambda/scryscraper-{env}`)
+   - 7-day retention
 
-   - Name: `/monorepo-fem/ts-heartbeat-{Environment}`
-   - Retention: 7 days (configurable)
-   - Where heartbeat logs are published
+5. **CloudWatch Alarms**
+   - Lambda errors
+   - Lambda throttles
+   - Lambda duration (80% of timeout)
+   - Scryfall rate limit hits (HTTP 429)
 
-4. **Lambda Execution Log Group** (`LambdaLogGroup`)
+6. **IAM Role** (stack-specific)
+   - S3 access (scoped to cache bucket)
+   - DynamoDB access (scoped to table)
+   - CloudWatch Logs access
 
-   - Name: `/aws/lambda/heartbeat-publisher-{Environment}`
-   - Retention: 7 days
-   - For monitoring the Lambda's own execution
+## Scryfall API Guidelines
 
-5. **IAM Execution Role** (created automatically by SAM)
-   - Permissions:
-     - `logs:CreateLogStream` (scoped to target log group)
-     - `logs:PutLogEvents` (scoped to target log group)
-     - Basic Lambda execution permissions (for Lambda's own logs)
+This service respects Scryfall's data usage guidelines:
 
-## How to Verify It's Working
+- **Rate Limiting**: 50-100ms delay between requests
+- **Caching**: 24-hour minimum cache duration
+- **Attribution**: Retains copyright and artist information
+- **User-Agent**: Identifies as `scryscraper/1.0`
 
-### 1. Check Lambda Execution Logs
-
-View the Lambda's own logs to see if it's executing successfully:
-
-```sh
-aws logs tail /aws/lambda/heartbeat-publisher-dev --follow
-```
-
-You should see log entries showing:
-
-- Lambda invocation
-- Event details
-- Log stream creation
-- Successful log publishing
-
-### 2. Check Target Log Group for Published Logs
-
-View the heartbeat logs published by the Lambda:
-
-```sh
-aws logs tail /monorepo-fem/ts-heartbeat-dev --follow
-```
-
-You should see structured JSON log entries:
-
-```json
-{
-  "message": "heartbeat",
-  "timestamp": "2024-01-15T12:00:00.000Z",
-  "source": "heartbeat-publisher",
-  "type": "heartbeat"
-}
-```
-
-### 3. Verify EventBridge Rule
-
-Check that the schedule rule is enabled:
-
-```sh
-aws events describe-rule --name heartbeat-publisher-schedule-dev
-```
-
-Look for `"State": "ENABLED"` in the output.
-
-### 4. Monitor via AWS Console
-
-- **Lambda Console**: Check function invocations, duration, errors
-- **CloudWatch Console**: View both log groups (Lambda execution + target logs)
-- **EventBridge Console**: Verify rule triggers and invocation count
-
-## Local Testing
-
-Test the Lambda locally without deploying to AWS:
-
-```sh
-sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json
-```
-
-**Note**: This requires Docker to be running, as SAM uses Docker to simulate the Lambda environment.
-
-If you don't have Docker, you can test the TypeScript code directly (though this won't simulate the full Lambda environment):
-
-```sh
-pnpm run build
-node dist/index.mjs
-```
+See `docs/scryfall-api.md` for detailed API documentation.
 
 ## Testing
 
-This package uses **Vitest** for testing with full AWS SDK mocking support.
-
-### Running Tests
-
 ```sh
-# Run all tests once
+# Run all tests
 pnpm test
 
-# Run tests in watch mode (re-runs on file changes)
+# Run tests in watch mode
 pnpm test:watch
 
-# Run tests with coverage report
+# Run tests with coverage
 pnpm test:coverage
-
-# Run tests with UI (browser-based test viewer)
-pnpm test:ui
 ```
 
 ### Test Coverage
 
-Current coverage targets (enforced in `vitest.config.ts`):
-- **Statements**: 80%+
-- **Branches**: 80%+
-- **Functions**: 80%+
-- **Lines**: 80%+
+Enforced coverage targets:
+- Statements: 80%+
+- Branches: 80%+
+- Functions: 80%+
+- Lines: 80%+
 
-To view the detailed coverage report:
+## Monitoring
 
-```sh
-pnpm test:coverage
-open coverage/index.html  # Opens HTML coverage report in browser
-```
+### CloudWatch Alarms
 
-### Test Structure
+Monitor the service via CloudWatch alarms:
 
-Tests are located in `src/index.test.ts` alongside the implementation (`src/index.ts`). The test suite covers:
+1. **scryscraper-errors-{env}** - Lambda execution errors
+2. **scryscraper-throttles-{env}** - Lambda throttling
+3. **scryscraper-duration-{env}** - Duration approaching timeout
+4. **scryscraper-rate-limit-{env}** - Scryfall API rate limiting (HTTP 429)
 
-- **Environment Validation**: Missing/invalid environment variables
-- **Log Stream Creation**: Successful creation, handling existing streams, error propagation
-- **Heartbeat Publishing**: Log structure, targeting, error handling
-- **End-to-End Execution**: Full handler flow with EventBridge events
-- **Log Stream Naming**: Format validation, uniqueness across invocations
-- **Error Handling**: Error logging, retry propagation
-
-### AWS SDK Mocking
-
-Tests use `aws-sdk-client-mock` to mock AWS SDK calls without requiring AWS credentials:
-
-```typescript
-import { mockClient } from 'aws-sdk-client-mock';
-import { CloudWatchLogsClient, CreateLogStreamCommand } from '@aws-sdk/client-cloudwatch-logs';
-
-const cwLogsMock = mockClient(CloudWatchLogsClient);
-
-// Mock successful log stream creation
-cwLogsMock.on(CreateLogStreamCommand).resolves({});
-
-// Mock ResourceAlreadyExistsException
-cwLogsMock.on(CreateLogStreamCommand).rejects(
-  new ResourceAlreadyExistsException({ message: 'Stream exists', $metadata: {} })
-);
-```
-
-### Writing New Tests
-
-When adding new functionality:
-
-1. Write tests first (TDD approach per CLAUDE.md)
-2. Use descriptive test names: `should [expected behaviour] when [condition]`
-3. Mock AWS SDK calls - never make real AWS API calls in tests
-4. Test both success and failure paths
-5. Verify error handling and error messages
-6. Run coverage to ensure new code is tested:
-   ```sh
-   pnpm test:coverage
-   ```
-
-### Continuous Testing During Development
-
-Use watch mode to get instant feedback while coding:
+### Viewing Logs
 
 ```sh
-pnpm test:watch
+# Lambda execution logs
+aws logs tail /aws/lambda/scryscraper-dev --follow
 ```
-
-This reruns tests automatically when you save files, providing rapid feedback loops.
-
-## Modifying the Schedule
-
-To change how frequently the Lambda runs, update the `ScheduleRate` parameter in `template.yaml`:
-
-```yaml
-ScheduleRate:
-  Type: String
-  Default: rate(5 minutes) # Changed from rate(1 minute)
-```
-
-Or override it during deployment:
-
-```sh
-sam deploy --parameter-overrides ScheduleRate="rate(5 minutes)"
-```
-
-### Schedule Expression Examples
-
-- `rate(1 minute)` - Every minute
-- `rate(5 minutes)` - Every 5 minutes
-- `rate(1 hour)` - Every hour
-- `cron(0 12 * * ? *)` - Daily at noon UTC
-- `cron(0/15 * * * ? *)` - Every 15 minutes
-
-See [AWS Schedule Expressions](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html) for more examples.
-
-## Modifying Log Retention
-
-To change how long logs are retained, update the `LogRetentionDays` parameter:
-
-```sh
-sam deploy --parameter-overrides LogRetentionDays=30
-```
-
-Allowed values: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653
-
-## Technical Details
-
-### Module System
-
-This project uses **ESM (ECMAScript Modules)** instead of CommonJS:
-
-- `package.json` sets `"type": "module"`
-- TypeScript configured for ES2022 modules
-- Output is `.mjs` format
-
-**Why ESM?**
-
-- Modern standard, better tree-shaking for smaller bundles
-- Native support in Node.js 20+
-- Better alignment with AWS Lambda best practices
-
-### AWS SDK v3
-
-This project uses AWS SDK v3 (`@aws-sdk/client-cloudwatch-logs`):
-
-- Modular imports (only import what you need)
-- Smaller bundle sizes via tree-shaking
-- Better TypeScript support
-
-### Build Tool: esbuild
-
-**Why explicit `esbuild.config.js` instead of SAM's built-in esbuild?**
-
-- **Testability**: Can verify the build works before SAM packaging
-- **Debuggability**: Full control over esbuild configuration, easier to troubleshoot failures
-- **Independence**: Build failures are separate from packaging failures
-- **Observability**: Can inspect `dist/` output directly, add build-time checks
-- **No black box**: You own the config, no mysterious SAM wrapper layer
-
-Trade-off: One extra step (`pnpm run build`), but worth it for maintainability and clarity.
-
-Benefits of esbuild itself:
-- Fast compilation (sub-second builds)
-- Built-in bundling and minification
-- Handles TypeScript, ESM, and dependencies out of the box
-
-### IAM Permissions
-
-The Lambda's IAM role follows the **principle of least privilege**:
-
-- Permissions scoped to the specific target log group ARN (not wildcard)
-- No unnecessary permissions
-- Automatically managed by SAM CloudFormation
-
-### Error Handling Strategy
-
-- No internal retries in Lambda code
-- Errors bubble up to Lambda's retry logic
-- Lambda execution failures logged to CloudWatch
-- EventBridge will not retry on failure (by design for scheduled events)
 
 ## Troubleshooting
 
-### "Dynamic require of buffer is not supported" error
+### 429 Rate Limit Errors
 
-If you see this error in the Lambda execution logs, it means the Lambda code wasn't properly bundled. This typically happens when:
+If you see HTTP 429 errors in the logs:
 
-- The Lambda is using ES modules but dependencies have CommonJS-style dynamic requires
-- esbuild isn't configured to bundle dependencies correctly
+1. Check the rate limit alarm: `scryscraper-rate-limit-{env}`
+2. Verify request delays are 50-100ms
+3. Consider reducing EventBridge schedule frequency
 
-**Solution**: The `esbuild.config.js` includes a Banner configuration:
+### Cache Misses
 
-```javascript
-banner: {
-  // Create a CommonJS-style require() function in ESM context
-  // This allows AWS SDK and other dependencies to use dynamic requires
-  js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
-}
-```
+If S3 cache isn't being used:
 
-The Banner creates a CommonJS-style `require` function in the ESM context, allowing any dependencies that use dynamic requires to work correctly.
+1. Verify bucket permissions in IAM role
+2. Check S3 object LastModified timestamps
+3. Ensure cache key generation is idempotent
 
-If the error persists, verify that:
-1. You ran `pnpm run build` before deploying
-2. The `dist/index.mjs` file exists and contains the banner at the top
-3. You ran `sam build` after building (to package the dist/ folder)
+### DynamoDB Errors
 
-### Log group not deleted when stack is deleted
+If DynamoDB writes fail:
 
-If `/aws/lambda/heartbeat-publisher-{Environment}` remains after running `sam delete`, it's because AWS Lambda auto-created the log group before CloudFormation could manage it.
-
-**Solution**: The `template.yaml` now explicitly creates the log group BEFORE the Lambda function:
-
-```yaml
-LambdaLogGroup:
-  Type: AWS::Logs::LogGroup
-  DeletionPolicy: Delete
-  Properties:
-    LogGroupName: !Sub /aws/lambda/heartbeat-publisher-${Environment}
-
-CloudWatchPublisherFunction:
-  Type: AWS::Serverless::Function
-  DependsOn: LambdaLogGroup # Ensures log group exists first
-```
-
-This ensures CloudFormation "owns" the log group and can delete it properly when the stack is deleted.
-
-### Lambda execution succeeds but no logs in target group
-
-1. Check IAM permissions:
-
-   ```sh
-   aws iam get-role-policy --role-name heartbeat-publisher-dev-CloudWatchPublisherFunctionRole-XXXXX --policy-name CloudWatchPublisherFunctionRolePolicy
-   ```
-
-2. Verify log group exists:
-
-   ```sh
-   aws logs describe-log-groups --log-group-name-prefix /monorepo-fem/ts-heartbeat
-   ```
-
-3. Check Lambda environment variables:
-
-   ```sh
-   aws lambda get-function-configuration --function-name heartbeat-publisher-dev
-   ```
-
-### Lambda not executing on schedule
-
-1. Check EventBridge rule is enabled:
-
-   ```sh
-   aws events describe-rule --name heartbeat-publisher-schedule-dev
-   ```
-
-2. Check rule has a target:
-
-   ```sh
-   aws events list-targets-by-rule --rule heartbeat-publisher-schedule-dev
-   ```
-
-### Build failures
-
-1. Clear build artifacts:
-
-   ```sh
-   pnpm run clean  # Removes dist/ and .aws-sam/
-   rm -rf node_modules/  # If needed
-   ```
-
-2. Reinstall and rebuild:
-
-   ```sh
-   pnpm install
-   pnpm run build  # Build TypeScript with esbuild
-   sam build       # Package for AWS
-   ```
-
-3. Verify the build output exists:
-
-   ```sh
-   ls -lh dist/index.mjs
-   ```
+1. Check IAM permissions for table access
+2. Verify table exists: `aws dynamodb describe-table --table-name monorepo-fem-scryscraper-dev`
+3. Check for throttling in CloudWatch metrics
 
 ## Clean Up
 
-To delete all AWS resources created by this stack:
+To delete all AWS resources:
 
 ```sh
 sam delete
 ```
 
-This will remove:
-
-- Lambda function
-- EventBridge schedule rule
-- Both CloudWatch log groups (including all logs)
-- IAM execution role
-- CloudFormation stack
-
-**Warning**: This permanently deletes all logs. Export logs first if needed.
-
-## Comparison to Previous Docker Implementation
-
-| Aspect            | Docker Version                  | SAM + Lambda Version               |
-| ----------------- | ------------------------------- | ---------------------------------- |
-| **Runtime Cost**  | Continuous (EC2/ECS/Fargate)    | Per-execution (seconds of compute) |
-| **Idle Cost**     | Yes                             | No                                 |
-| **Maintenance**   | Docker images, base OS patches  | AWS manages runtime                |
-| **Scheduling**    | Cron daemon in container        | EventBridge (managed service)      |
-| **Observability** | Custom setup required           | Built-in CloudWatch integration    |
-| **Scalability**   | Manual orchestration            | Automatic (though not needed here) |
-| **Deployment**    | Docker push + container restart | `sam deploy`                       |
+**Warning**: 
+- For `exp` environment: All resources are deleted
+- For other environments: S3 bucket, DynamoDB table, and CloudWatch log groups are retained
 
 ## Development Workflow
 
-1. Make changes to `src/index.ts`
-2. Run tests: `pnpm test` (or `pnpm test:watch` for continuous feedback)
-3. Verify coverage: `pnpm test:coverage` (ensure ≥80% coverage)
+1. Make changes to source code
+2. Run tests: `pnpm test`
+3. Verify coverage: `pnpm test:coverage`
 4. Build: `pnpm run build`
-5. Verify build output: `ls -lh dist/index.mjs`
-6. Test locally (optional): `sam local invoke CloudWatchPublisherFunction --event events/eventbridge-event.json`
-7. Package: `sam build`
-8. Deploy: `sam deploy`
-9. Verify: `aws logs tail /monorepo-fem/ts-heartbeat-dev --follow`
+5. Package: `sam build`
+6. Deploy: `sam deploy`
+7. Monitor: Check CloudWatch alarms and logs
 
-**Key principles**:
-- Test failures happen in step 2 (your tests)
-- Build failures happen in step 4 (TypeScript/esbuild)
-- Packaging failures happen in step 7 (SAM)
-- This separation makes debugging much easier
+## References
 
-## Contributing
-
-This is a learning project focused on communication and architectural decision-making in software engineering. When making changes:
-
-1. Document the "why" behind decisions
-2. Consider trade-offs and alternatives
-3. Update this README if behaviour changes
-4. Add inline comments explaining non-obvious code
+- [Scryfall API Documentation](https://scryfall.com/docs/api)
+- [Scryfall Rate Limiting Policy](https://scryfall.com/docs/api#rate-limits-and-good-citizenship)
+- [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/)

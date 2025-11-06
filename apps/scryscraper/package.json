@@ -26,6 +26,9 @@
   "module": "dist/index.js",
   "dependencies": {
     "@monorepo-fem/cloudwatch-log-publisher": "workspace:*",
+    "@monorepo-fem/dynamodb-client": "workspace:*",
+    "@monorepo-fem/s3-client": "workspace:*",
+    "axios": "^1.13.2",
     "zod": "^4.1.12"
   },
   "devDependencies": {
