@@ -25,28 +25,28 @@ on:
   workflow_call:
     inputs:
       app-name:
-        description: "Name of the app to deploy (e.g., pulse-publisher, heartbeat-publisher)"
+        description: 'Name of the app to deploy (e.g., pulse-publisher, heartbeat-publisher)'
         required: true
         type: string
       environment:
-        description: "Target environment (dev/staging/prod)"
+        description: 'Target environment (dev/staging/prod)'
         required: true
         type: string
       working-directory:
-        description: "Working directory for the app (e.g., apps/pulse-publisher)"
+        description: 'Working directory for the app (e.g., apps/pulse-publisher)'
         required: true
         type: string
       output-key:
-        description: "CloudFormation output key for function name (e.g., PulsePublisherFunction)"
+        description: 'CloudFormation output key for function name (e.g., PulsePublisherFunction)'
         required: true
         type: string
       artefact-name:
-        description: "Name of the build artefact to download (e.g., pulse-build-artefacts)"
+        description: 'Name of the build artefact to download (e.g., pulse-build-artefacts)'
         required: true
         type: string
     secrets:
       aws-oidc-deploy-role-arn:
-        description: "AWS OIDC role ARN for deployment authentication"
+        description: 'AWS OIDC role ARN for deployment authentication'
         required: true
 
 permissions:
@@ -72,8 +72,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "pnpm"
+          node-version: '20'
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -133,7 +133,7 @@ jobs:
           ENV="${{ inputs.environment }}"
           STACK_NAME="${{ inputs.app-name }}-$ENV"
           sam deploy \
-            --capabilities CAPABILITY_IAM \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --config-env $ENV \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
