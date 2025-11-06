@@ -1,8 +1,8 @@
 import type { ScheduledEvent } from 'aws-lambda'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import type {
-  ScryScraperResult,
-  ScryScraperService,
+  ScryscraperResult,
+  ScryscraperService,
 } from './services/scryfall-scraper.service.js'
 
 // Load the example set response
@@ -28,14 +28,14 @@ const exampleSetResponse = {
 }
 
 // Mock the scryfall-scraper service
-let mockGetSetResult: ScryScraperResult = {
+let mockGetSetResult: ScryscraperResult = {
   data: exampleSetResponse,
   fromCache: false,
 }
 let mockGetSetError: Error | null = null
 
 const mockGetSet = vi.fn(
-  async (): Promise<ScryScraperResult> => {
+  async (): Promise<ScryscraperResult> => {
     if (mockGetSetError) {
       throw mockGetSetError
     }
@@ -43,17 +43,17 @@ const mockGetSet = vi.fn(
   }
 )
 
-const mockCreateScryScraperService = vi.fn(
-  (): ScryScraperService => {
+const mockCreateScryscraperService = vi.fn(
+  (): ScryscraperService => {
     return {
       getSet: mockGetSet,
-    } as ScryScraperService
+    } as ScryscraperService
   }
 )
 
 vi.mock('./services/scryfall-scraper.service.js', () => {
   return {
-    createScryScraperService: mockCreateScryScraperService,
+    createScryscraperService: mockCreateScryscraperService,
   }
 })
 
@@ -68,7 +68,7 @@ describe('Lambda Handler - Scryscraper', () => {
     // Reset environment variables
     process.env = {
       ...originalEnv,
-      S3_CACHE_BUCKET: 'test-cache-bucket',
+      SCRYSCRAPER_CACHE_BUCKET: 'test-cache-bucket',
       SCRYFALL_SET_CODE: 'tla',
     }
 
@@ -89,13 +89,13 @@ describe('Lambda Handler - Scryscraper', () => {
   })
 
   describe('Environment Validation', () => {
-    it('should throw error when S3_CACHE_BUCKET is missing', async () => {
-      delete process.env.S3_CACHE_BUCKET
+    it('should throw error when SCRYSCRAPER_CACHE_BUCKET is missing', async () => {
+      delete process.env.SCRYSCRAPER_CACHE_BUCKET
 
       const event = createMockScheduledEvent()
 
       await expect(handler(event)).rejects.toThrow(
-        'Missing required environment variable: S3_CACHE_BUCKET'
+        'Missing required environment variable: SCRYSCRAPER_CACHE_BUCKET'
       )
     })
 
@@ -115,7 +115,7 @@ describe('Lambda Handler - Scryscraper', () => {
       await expect(handler(event)).resolves.not.toThrow()
 
       // Verify that service was created with correct config
-      expect(mockCreateScryScraperService).toHaveBeenCalledWith({
+      expect(mockCreateScryscraperService).toHaveBeenCalledWith({
         s3BucketName: 'test-cache-bucket',
         userAgent: 'scryscraper/1.0',
       })
@@ -128,7 +128,7 @@ describe('Lambda Handler - Scryscraper', () => {
       await handler(event)
 
       // Verify service was created
-      expect(mockCreateScryScraperService).toHaveBeenCalledWith({
+      expect(mockCreateScryscraperService).toHaveBeenCalledWith({
         s3BucketName: 'test-cache-bucket',
         userAgent: 'scryscraper/1.0',
       })

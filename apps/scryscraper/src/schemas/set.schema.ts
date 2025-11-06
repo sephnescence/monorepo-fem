@@ -87,6 +87,6 @@ export function validateSetResponse(data: unknown): ScryfallSet {
  */
 export function safeValidateSetResponse(
   data: unknown
-): z.SafeParseReturnType<unknown, ScryfallSet> {
+): z.SafeParseResult<ScryfallSet> {
   return ScryfallSetSchema.safeParse(data)
 }

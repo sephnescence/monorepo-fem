@@ -140,7 +140,7 @@ Resources:
       Environment:
         Variables:
           NODE_ENV: !Ref Environment
-          S3_CACHE_BUCKET: !Ref ScryScraperCacheBucket
+          SCRYSCRAPER_CACHE_BUCKET: !Ref ScryScraperCacheBucket
           DYNAMODB_TABLE: !Ref ScryScraperTable
       Events:
         ScheduledEvent:

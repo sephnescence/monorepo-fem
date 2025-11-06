@@ -13,7 +13,7 @@ import { ScryfallSetSchema, type ScryfallSet } from '../schemas/set.schema.js'
 /**
  * Configuration for Scryfall Scraper Service
  */
-export interface ScryScraperConfig {
+export interface ScryscraperConfig {
   s3BucketName: string
   userAgent?: string
   s3Client?: S3ClientWrapper
@@ -23,7 +23,7 @@ export interface ScryScraperConfig {
 /**
  * Result of fetching set data (includes cache status)
  */
-export interface ScryScraperResult {
+export interface ScryscraperResult {
   data: ScryfallSet
   fromCache: boolean
   cacheAge?: number
@@ -32,7 +32,7 @@ export interface ScryScraperResult {
 /**
  * Cache duration in milliseconds (24 hours)
  */
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
+const TWENTY_FOUR_HOURS_MS = 86400000 // 24 * 60 * 60 * 1000
 
 /**
  * Scryfall Scraper Service
@@ -40,12 +40,12 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
  * Fetches MTG set data from Scryfall API with intelligent caching.
  * Implements 24-hour caching as per Scryfall's data usage guidelines.
  */
-export class ScryScraperService {
+export class ScryscraperService {
   private s3Client: S3ClientWrapper
   private axios: AxiosInstance
   private userAgent: string
 
-  constructor(config: ScryScraperConfig) {
+  constructor(config: ScryscraperConfig) {
     this.s3Client =
       config.s3Client ?? createS3Client({ bucketName: config.s3BucketName })
     this.userAgent = config.userAgent ?? 'scryscraper/1.0'
@@ -100,7 +100,7 @@ export class ScryScraperService {
       if (!validation.success) {
         console.warn('Cached data failed validation, ignoring cache:', {
           cacheKey,
-          errors: validation.error.errors,
+          errors: validation.error.issues,
         })
         return null
       }
@@ -150,13 +150,13 @@ export class ScryScraperService {
       const validation = ScryfallSetSchema.safeParse(response.data)
 
       if (!validation.success) {
-        const errorMessages = validation.error.errors
+        const errorMessages = validation.error.issues
           .map((e) => e.path.join('.') + ': ' + e.message)
           .join(', ')
 
         console.error('Scryfall API response validation failed:', {
           setCode,
-          errors: validation.error.errors,
+          errors: validation.error.issues,
         })
 
         throw new Error(
@@ -204,7 +204,7 @@ export class ScryScraperService {
    * 3. Fetches from Scryfall API if cache miss/stale
    * 4. Stores response in S3 for future requests
    */
-  async getSet(setCode: string): Promise<ScryScraperResult> {
+  async getSet(setCode: string): Promise<ScryscraperResult> {
     const url = 'https://api.scryfall.com/sets/' + setCode
     const cacheKey = this.generateCacheKey(url)
 
@@ -258,8 +258,8 @@ export class ScryScraperService {
 /**
  * Creates a Scryfall Scraper Service instance
  */
-export function createScryScraperService(
-  config: ScryScraperConfig
-): ScryScraperService {
-  return new ScryScraperService(config)
+export function createScryscraperService(
+  config: ScryscraperConfig
+): ScryscraperService {
+  return new ScryscraperService(config)
 }

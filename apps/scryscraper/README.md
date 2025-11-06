@@ -72,7 +72,7 @@ scryscraper/
 2. **Build the Lambda function:**
 
    ```sh
-   pnpm run build
+   pnpm lerna run build --scope=scryscraper
    ```
 
 3. **Verify the build output:**
@@ -83,28 +83,20 @@ scryscraper/
 
 ## How to Deploy
 
-**IMPORTANT**: Always run `pnpm run build` before deploying.
+**IMPORTANT**: Always run `pnpm lerna run build --scope=scryscraper` before deploying.
 
-### First-Time Deployment (Guided)
-
-```sh
-pnpm run build
-sam build
-sam deploy --guided
-```
-
-You'll be prompted for:
-
-- **Stack Name**: e.g., `scryscraper-dev`
-- **AWS Region**: e.g., `ap-southeast-2`
-- **Environment**: `dev`, `staging`, `prod`, or `exp`
-
-### Subsequent Deployments
+### Deployment
 
 ```sh
-pnpm run build
+pnpm lerna run build --scope=scryscraper
 sam build
 sam deploy
+```
+
+The deployment configuration is stored in `samconfig.toml`. To reconfigure deployment settings, use:
+
+```sh
+sam deploy --guided
 ```
 
 ## Resources Created
@@ -153,13 +145,13 @@ See `docs/scryfall-api.md` for detailed API documentation.
 
 ```sh
 # Run all tests
-pnpm test
+pnpm lerna run test --scope=scryscraper
 
 # Run tests in watch mode
-pnpm test:watch
+pnpm lerna run test:watch --scope=scryscraper
 
 # Run tests with coverage
-pnpm test:coverage
+pnpm lerna run test:coverage --scope=scryscraper
 ```
 
 ### Test Coverage
@@ -229,9 +221,9 @@ sam delete
 ## Development Workflow
 
 1. Make changes to source code
-2. Run tests: `pnpm test`
-3. Verify coverage: `pnpm test:coverage`
-4. Build: `pnpm run build`
+2. Run tests: `pnpm lerna run test --scope=scryscraper`
+3. Verify coverage: `pnpm lerna run test:coverage --scope=scryscraper`
+4. Build: `pnpm lerna run build --scope=scryscraper`
 5. Package: `sam build`
 6. Deploy: `sam deploy`
 7. Monitor: Check CloudWatch alarms and logs

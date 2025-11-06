@@ -1,15 +1,14 @@
 /**
  * Image Downloader Service for MTG card images
  *
- * This module provides boilerplate code for downloading card images from Scryfall
- * and storing them in S3 or local storage.
+ * This module provides code for downloading card images from Scryfall
+ * and storing them in S3.
  *
- * NOTE: This is boilerplate code - S3 integration is not yet configured.
- * To use this service, you will need to:
- * 1. Add @aws-sdk/client-s3 to dependencies
- * 2. Create an S3 bucket for card images
- * 3. Configure IAM permissions for the Lambda function
- * 4. Set S3_BUCKET_NAME environment variable
+ * NOTE: This service is ready for S3 integration but currently contains
+ * placeholder implementations. To fully activate:
+ * 1. Uncomment S3Client initialisation in constructor
+ * 2. Uncomment actual download and upload logic in methods
+ * 3. Set SCRYSCRAPER_S3_BUCKET_NAME environment variable
  *
  * Scryfall Image Formats:
  * - png: High-resolution PNG (best quality)
@@ -102,12 +101,12 @@ export class ImageDownloaderService {
   // private s3Client: S3Client // Uncomment when AWS SDK is added
 
   constructor(bucketName?: string, bucketPrefix: string = 'cards/images') {
-    this.bucketName = bucketName || process.env.S3_BUCKET_NAME || ''
+    this.bucketName = bucketName || process.env.SCRYSCRAPER_S3_BUCKET_NAME || ''
     this.bucketPrefix = bucketPrefix
 
     if (!this.bucketName) {
       console.warn(
-        'S3 bucket name not configured. Set S3_BUCKET_NAME environment variable.'
+        'S3 bucket name not configured. Set SCRYSCRAPER_S3_BUCKET_NAME environment variable.'
       )
     }
 
@@ -323,11 +322,7 @@ export class ImageDownloaderService {
    * @returns The public URL (if bucket is public) or signed URL
    */
   getImageUrl(s3Key: string): string {
-    // TODO: Generate actual S3 URL
-    // For public buckets:
-    // return `https://${this.bucketName}.s3.amazonaws.com/${s3Key}`
-    //
-    // For private buckets, generate a signed URL:
+    // TODO: For private buckets, generate a signed URL instead:
     // import { GetObjectCommand } from '@aws-sdk/client-s3'
     // import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
     //
@@ -337,7 +332,7 @@ export class ImageDownloaderService {
     // })
     // return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 })
 
-    return `https://placeholder.s3.amazonaws.com/${s3Key}`
+    return `https://${this.bucketName}.s3.amazonaws.com/${s3Key}`
   }
 }
 

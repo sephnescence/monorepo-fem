@@ -1,11 +1,11 @@
 import type { ScheduledEvent } from 'aws-lambda'
-import { createScryScraperService } from './services/scryfall-scraper.service.js'
+import { createScryscraperService } from './services/scryfall-scraper.service.js'
 
 /**
  * Environment variables required for the Lambda function
  */
 interface EnvironmentVariables {
-  S3_CACHE_BUCKET: string
+  SCRYSCRAPER_CACHE_BUCKET: string
   SCRYFALL_SET_CODE: string
 }
 
@@ -16,10 +16,10 @@ interface EnvironmentVariables {
  * @returns {EnvironmentVariables} Validated environment variables
  */
 function validateEnvironment(): EnvironmentVariables {
-  const { S3_CACHE_BUCKET, SCRYFALL_SET_CODE } = process.env
+  const { SCRYSCRAPER_CACHE_BUCKET, SCRYFALL_SET_CODE } = process.env
 
-  if (!S3_CACHE_BUCKET) {
-    throw new Error('Missing required environment variable: S3_CACHE_BUCKET')
+  if (!SCRYSCRAPER_CACHE_BUCKET) {
+    throw new Error('Missing required environment variable: SCRYSCRAPER_CACHE_BUCKET')
   }
 
   if (!SCRYFALL_SET_CODE) {
@@ -27,7 +27,7 @@ function validateEnvironment(): EnvironmentVariables {
   }
 
   return {
-    S3_CACHE_BUCKET,
+    SCRYSCRAPER_CACHE_BUCKET,
     SCRYFALL_SET_CODE,
   }
 }
@@ -45,12 +45,12 @@ export async function handler(event: ScheduledEvent): Promise<void> {
   try {
     // Validate environment variables
     const env = validateEnvironment()
-    console.log(`S3 cache bucket: ${env.S3_CACHE_BUCKET}`)
+    console.log(`S3 cache bucket: ${env.SCRYSCRAPER_CACHE_BUCKET}`)
     console.log(`Scraping set: ${env.SCRYFALL_SET_CODE}`)
 
     // Create Scryfall scraper service with S3 caching
-    const scraper = createScryScraperService({
-      s3BucketName: env.S3_CACHE_BUCKET,
+    const scraper = createScryscraperService({
+      s3BucketName: env.SCRYSCRAPER_CACHE_BUCKET,
       userAgent: 'scryscraper/1.0',
     })
 
