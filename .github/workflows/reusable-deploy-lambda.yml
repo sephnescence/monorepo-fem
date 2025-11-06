@@ -106,6 +106,47 @@ jobs:
           role-to-assume: ${{ secrets.aws-oidc-deploy-role-arn }}
           aws-region: ap-southeast-2
 
+      - name: Check PolicyManager role exists
+        id: policy-manager-check
+        run: |
+          ENV="${{ inputs.environment }}"
+          ROLE_NAME="monorepo-fem-policy-manager-$ENV"
+          STACK_NAME="monorepo-fem-devops-$ENV"
+
+          if ! aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null; then
+            echo "⚠️  WARNING: PolicyManager role does not exist for $ENV environment"
+            echo "The DevOps infrastructure must be bootstrapped before deploying applications."
+            echo ""
+            echo "To bootstrap the $ENV environment, a trusted person with AWS admin access must run:"
+            echo ""
+            echo "  aws cloudformation create-stack \\"
+            echo "    --stack-name $STACK_NAME \\"
+            echo "    --template-body file://devops/$ENV/monorepo-fem-github-actions-sam-deploy-$ENV.yml \\"
+            echo "    --capabilities CAPABILITY_NAMED_IAM \\"
+            echo "    --region ap-southeast-2 \\"
+            echo "    --parameters \\"
+            echo "      ParameterKey=GitHubOrganization,ParameterValue=sephnescence \\"
+            echo "      ParameterKey=GitHubRepository,ParameterValue=monorepo-fem \\"
+            echo "      ParameterKey=Environment,ParameterValue=$ENV \\"
+            echo "      ParameterKey=DeploymentBranch,ParameterValue=deploy-$ENV \\"
+            echo "      ParameterKey=AWSAccountId,ParameterValue=395380602678 \\"
+            echo "      ParameterKey=AWSRegion,ParameterValue=ap-southeast-2"
+            echo ""
+            echo "For detailed instructions, see: devops/README.md"
+            echo ""
+            echo "policy-manager-exists=false" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "✓ PolicyManager role exists: $ROLE_NAME"
+            echo "policy-manager-exists=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Exit if PolicyManager missing
+        if: steps.policy-manager-check.outputs.policy-manager-exists == 'false'
+        run: |
+          echo "::warning::Deployment skipped - PolicyManager role not found. See bootstrap instructions above."
+          exit 0
+
       - name: Validate SAM template
         working-directory: ${{ inputs.working-directory }}
         run: sam validate --lint
