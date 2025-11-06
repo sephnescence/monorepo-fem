@@ -115,6 +115,7 @@
         "logs:DeleteLogGroup",
         "logs:DeleteRetentionPolicy",
         "logs:DescribeLogGroups",
+        "logs:DescribeMetricFilters",
         "logs:PutRetentionPolicy",
         "logs:TagLogGroup",
         "logs:UntagLogGroup"

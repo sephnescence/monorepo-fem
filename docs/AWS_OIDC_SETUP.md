@@ -6,6 +6,22 @@ This guide explains how to configure AWS to allow GitHub Actions to deploy your 
 
 OIDC allows GitHub Actions to authenticate with AWS without storing long-lived credentials (access keys) in GitHub secrets. Instead, GitHub Actions receives a short-lived token from AWS that's only valid for the duration of the workflow run.
 
+## Branch Strategy
+
+This repository uses environment-specific deployment branches:
+
+- `deploy-dev` - Triggers deployments to the development environment
+- `deploy-exp` - Triggers deployments to the experimental/staging environment
+- `deploy-prod` - Triggers deployments to the production environment
+
+The `main` branch does not trigger automatic deployments. To deploy:
+
+1. Merge your changes to `main`
+2. Merge `main` into the appropriate deployment branch (`deploy-dev` → `deploy-exp` → `deploy-prod`)
+3. Push the deployment branch to trigger the deployment
+
+You can also manually trigger deployments using workflow dispatch, which allows selecting the target environment.
+
 ## Prerequisites
 
 - AWS Account with administrator access
@@ -203,7 +219,11 @@ Create a file named `.github/github-trust-policy.json` (Update `token.actions.gi
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:sephnescence/monorepo-fem:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub": [
+            "repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-dev",
+            "repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-exp",
+            "repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-prod"
+          ]
         }
       }
     }
@@ -211,7 +231,7 @@ Create a file named `.github/github-trust-policy.json` (Update `token.actions.gi
 }
 ```
 
-**Important:** The `StringLike` condition restricts the role to only be assumable from the `main` branch. This is a security best practice.
+**Important:** The `StringLike` condition restricts the role to only be assumable from the three deployment branches (`deploy-dev`, `deploy-exp`, `deploy-prod`). This is a security best practice that prevents deployments from feature branches.
 
 Create the role:
 
@@ -245,7 +265,7 @@ aws iam attach-role-policy \
 
 ## Verification
 
-Test the setup by pushing a change to the `main` branch and checking if the deployment workflow can authenticate with AWS.
+Test the setup by pushing a change to one of the deployment branches (`deploy-dev`, `deploy-exp`, or `deploy-prod`) and checking if the deployment workflow can authenticate with AWS.
 
 You can also test locally using the AWS CLI:
 
@@ -264,9 +284,10 @@ aws iam get-role --role-name GitHubActionsDeployRole
 
 1. **Least Privilege:** The policy only grants permissions needed for SAM deployments
 2. **Resource Restrictions:** Actions are scoped to specific CloudFormation stacks and Lambda functions
-3. **Branch Restrictions:** The role can only be assumed from the `main` branch
+3. **Branch Restrictions:** The role can only be assumed from the deployment branches (`deploy-dev`, `deploy-exp`, `deploy-prod`), preventing deployments from feature branches
 4. **Short-lived Tokens:** Tokens expire after the workflow completes
 5. **No Long-lived Credentials:** No access keys stored in GitHub
+6. **Environment Isolation:** Each deployment branch targets a specific environment, allowing for progressive deployment testing
 
 ## Troubleshooting
 

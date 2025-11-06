@@ -1,6 +1,11 @@
 name: Deploy Heartbeat Publisher
 
 on:
+  push:
+    branches:
+      - deploy-dev
+      - deploy-exp
+      - deploy-prod
   workflow_dispatch:
     inputs:
       environment:
@@ -10,12 +15,12 @@ on:
         type: choice
         options:
           - dev
-          - staging
+          - exp
           - prod
 
 # Prevent concurrent deployments per environment
 concurrency:
-  group: heartbeat-deployment-${{ github.event.inputs.environment }}
+  group: heartbeat-deployment-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || github.ref_name }}
   cancel-in-progress: false # This will apparently be queued if there is a collision
 
 permissions:
@@ -27,9 +32,25 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set target environment
+        id: set-env
+        run: |
+          # For manual dispatch, use the selected environment; for branch push, extract from branch name
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            # Extract environment from branch name (deploy-dev -> dev, deploy-exp -> exp, deploy-prod -> prod)
+            BRANCH_NAME="${{ github.ref_name }}"
+            ENV="${BRANCH_NAME#deploy-}"
+            echo "environment=$ENV" >> $GITHUB_OUTPUT
+            echo "Deploying to environment: $ENV (from branch: $BRANCH_NAME)"
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -64,7 +85,7 @@ jobs:
     uses: ./.github/workflows/reusable-deploy-lambda.yml
     with:
       app-name: heartbeat-publisher
-      environment: ${{ github.event.inputs.environment }}
+      environment: ${{ needs.build-and-test.outputs.environment }}
       working-directory: apps/heartbeat-publisher
       output-key: HeartbeatPublisherFunction
       artefact-name: heartbeat-build-artefacts
