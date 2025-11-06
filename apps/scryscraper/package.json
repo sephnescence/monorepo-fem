@@ -1,0 +1,43 @@
+{
+  "name": "scryscraper",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AWS Lambda function that scrapes Scryfall API for MTG card data",
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "clean": "rm -rf dist/ .aws-sam/",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "format": "echo 'Formatting not yet configured'",
+    "check": "echo 'Check not yet configured'",
+    "sam:build": "sam build",
+    "sam:deploy:dev": "sam deploy --config-env dev --parameter-overrides Environment=dev",
+    "sam:deploy:staging": "sam deploy --config-env staging --parameter-overrides Environment=staging",
+    "sam:deploy:prod": "sam deploy --config-env prod --parameter-overrides Environment=prod --no-confirm-changeset",
+    "deploy:dev": "pnpm build && pnpm sam:build && pnpm sam:deploy:dev",
+    "deploy:staging": "pnpm build && pnpm sam:build && pnpm sam:deploy:staging",
+    "deploy:prod": "pnpm build && pnpm sam:build && pnpm sam:deploy:prod"
+  },
+  "types": "dist/index.d.ts",
+  "module": "dist/index.js",
+  "dependencies": {
+    "@monorepo-fem/cloudwatch-log-publisher": "workspace:*",
+    "@monorepo-fem/dynamodb-client": "workspace:*",
+    "@monorepo-fem/s3-client": "workspace:*",
+    "axios": "^1.13.2",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^24.9.2",
+    "@vitest/coverage-v8": "^4.0.6",
+    "aws-sdk-client-mock": "^4.1.0",
+    "esbuild": "^0.25.11",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.6"
+  }
+}

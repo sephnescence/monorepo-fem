@@ -1,0 +1,36 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["package.json"],
+      "project": ["**/*.{js,ts,mjs,cjs}"]
+    },
+    "apps/*": {
+      "entry": [
+        "src/index.ts",
+        "src/index.mts",
+        "src/index.mjs",
+        "esbuild.config.js",
+        "template.yaml"
+      ],
+      "project": ["src/**/*.{ts,mts,js,mjs}", "*.config.{js,ts}"]
+    },
+    "packages/*": {
+      "entry": ["src/index.ts", "src/index.mts"],
+      "project": ["src/**/*.{ts,mts,js,mjs}"]
+    }
+  },
+  "ignore": [
+    "dist/**",
+    ".aws-sam/**",
+    "cdk.out/**",
+    "coverage/**",
+    "**/*.test.{ts,js}",
+    "**/*.spec.{ts,js}"
+  ],
+  "ignoreDependencies": [
+    "@vitest/coverage-v8",
+    "vitest"
+  ],
+  "ignoreExportsUsedInFile": true
+}

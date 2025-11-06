@@ -1,0 +1,59 @@
+{
+  "$schema": "https://unpkg.com/syncpack@13/schema.json",
+  "versionGroups": [
+    {
+      "label": "Use workspace protocol for internal dependencies",
+      "dependencies": ["@monorepo-fem/**"],
+      "dependencyTypes": ["prod", "dev"],
+      "pinVersion": "workspace:*"
+    },
+    {
+      "label": "Pin production dependencies to exact versions",
+      "dependencies": ["**"],
+      "dependencyTypes": ["prod"],
+      "policy": "sameRange",
+      "snapTo": ["~"]
+    },
+    {
+      "label": "Allow flexibility for dev dependencies",
+      "dependencies": ["**"],
+      "dependencyTypes": ["dev"],
+      "policy": "sameRange",
+      "snapTo": ["^"]
+    }
+  ],
+  "semverGroups": [
+    {
+      "label": "Keep AWS SDK packages in sync",
+      "dependencies": ["@aws-sdk/**"],
+      "range": "^"
+    },
+    {
+      "label": "Keep testing tools in sync",
+      "dependencies": ["vitest", "@vitest/**"],
+      "range": "^"
+    },
+    {
+      "label": "Keep TypeScript tooling in sync",
+      "dependencies": ["typescript", "@types/**"],
+      "range": "^"
+    }
+  ],
+  "formatRepository": {
+    "order": [
+      "name",
+      "version",
+      "private",
+      "description",
+      "type",
+      "engines",
+      "packageManager",
+      "scripts",
+      "types",
+      "module",
+      "dependencies",
+      "devDependencies",
+      "peerDependencies"
+    ]
+  }
+}
