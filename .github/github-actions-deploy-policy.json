@@ -26,6 +26,7 @@
         "arn:aws:cloudformation:AWS_REGION:AWS_ACCOUNT_ID:stack/aws-sam-cli-managed-default/*",
         "arn:aws:cloudformation:AWS_REGION:AWS_ACCOUNT_ID:stack/heartbeat-publisher-*/*",
         "arn:aws:cloudformation:AWS_REGION:AWS_ACCOUNT_ID:stack/pulse-publisher-*/*",
+        "arn:aws:cloudformation:AWS_REGION:AWS_ACCOUNT_ID:stack/scryscraper-*/*",
         "arn:aws:cloudformation:AWS_REGION:aws:transform/Serverless-2016-10-31"
       ]
     },
@@ -74,7 +75,8 @@
       ],
       "Resource": [
         "arn:aws:lambda:AWS_REGION:*:function:heartbeat-publisher-*",
-        "arn:aws:lambda:AWS_REGION:*:function:pulse-publisher-*"
+        "arn:aws:lambda:AWS_REGION:*:function:pulse-publisher-*",
+        "arn:aws:lambda:AWS_REGION:*:function:scryscraper-*"
       ]
     },
     {
@@ -95,7 +97,8 @@
       ],
       "Resource": [
         "arn:aws:iam::*:role/heartbeat-publisher-*",
-        "arn:aws:iam::*:role/pulse-publisher-*"
+        "arn:aws:iam::*:role/pulse-publisher-*",
+        "arn:aws:iam::*:role/scryscraper-*"
       ]
     },
     {
@@ -133,7 +136,45 @@
       ],
       "Resource": [
         "arn:aws:events:AWS_REGION:*:rule/heartbeat-publisher-*",
-        "arn:aws:events:AWS_REGION:*:rule/pulse-publisher-*"
+        "arn:aws:events:AWS_REGION:*:rule/pulse-publisher-*",
+        "arn:aws:events:AWS_REGION:*:rule/scryscraper-*"
+      ]
+    },
+    {
+      "Sid": "ScryScraperS3Access",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:DeleteBucketPolicy",
+        "s3:GetBucketLocation",
+        "s3:GetBucketPolicy",
+        "s3:GetBucketVersioning",
+        "s3:GetLifecycleConfiguration",
+        "s3:ListBucket",
+        "s3:PutBucketPolicy",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutBucketVersioning",
+        "s3:PutLifecycleConfiguration"
+      ],
+      "Resource": ["arn:aws:s3:::monorepo-fem-scryscraper-cache-*"]
+    },
+    {
+      "Sid": "ScryScraperDynamoDBAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:CreateTable",
+        "dynamodb:DeleteTable",
+        "dynamodb:DescribeTable",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:ListTagsOfResource",
+        "dynamodb:TagResource",
+        "dynamodb:UntagResource",
+        "dynamodb:UpdateTable",
+        "dynamodb:UpdateTimeToLive"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:AWS_REGION:AWS_ACCOUNT_ID:table/monorepo-fem-scryscraper-*"
       ]
     }
   ]
