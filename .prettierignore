@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# CDK outputs
+cdk.out/
+.cdk.staging/
+
+# AWS SAM
+.aws-sam/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+
+# Cache
+.cache/
+.nx/
+
+# Generated files
+*.generated.*
+*.min.js
+*.min.css
+
+# Lockfiles
+package-lock.json
+yarn.lock
