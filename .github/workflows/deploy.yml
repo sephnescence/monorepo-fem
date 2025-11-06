@@ -35,6 +35,7 @@ jobs:
       has-heartbeat: ${{ steps.check.outputs.has-heartbeat }}
       has-pulse: ${{ steps.check.outputs.has-pulse }}
       has-cloudwatch: ${{ steps.check.outputs.has-cloudwatch }}
+      has-scryscraper: ${{ steps.check.outputs.has-scryscraper }}
       environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - name: Checkout
@@ -92,6 +93,7 @@ jobs:
           echo "has-heartbeat=$(echo "$AFFECTED" | jq 'contains(["heartbeat-publisher"])')" >> $GITHUB_OUTPUT
           echo "has-pulse=$(echo "$AFFECTED" | jq 'contains(["pulse-publisher"])')" >> $GITHUB_OUTPUT
           echo "has-cloudwatch=$(echo "$AFFECTED" | jq 'contains(["@monorepo-fem/cloudwatch-log-publisher"])')" >> $GITHUB_OUTPUT
+          echo "has-scryscraper=$(echo "$AFFECTED" | jq 'contains(["scryscraper"])')" >> $GITHUB_OUTPUT
 
   # Debug job to verify outputs
   debug-outputs:
@@ -108,6 +110,7 @@ jobs:
           echo "| has-heartbeat | '${{ needs.detect-affected.outputs.has-heartbeat }}' | string |" >> $GITHUB_STEP_SUMMARY
           echo "| has-pulse | '${{ needs.detect-affected.outputs.has-pulse }}' | string |" >> $GITHUB_STEP_SUMMARY
           echo "| has-cloudwatch | '${{ needs.detect-affected.outputs.has-cloudwatch }}' | string |" >> $GITHUB_STEP_SUMMARY
+          echo "| has-scryscraper | '${{ needs.detect-affected.outputs.has-scryscraper }}' | string |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Conditional Expression Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -116,6 +119,7 @@ jobs:
           echo "| has-heartbeat == 'true' | ${{ needs.detect-affected.outputs.has-heartbeat == 'true' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| has-pulse == 'true' | ${{ needs.detect-affected.outputs.has-pulse == 'true' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| has-cloudwatch == 'true' | ${{ needs.detect-affected.outputs.has-cloudwatch == 'true' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| has-scryscraper == 'true' | ${{ needs.detect-affected.outputs.has-scryscraper == 'true' }} |" >> $GITHUB_STEP_SUMMARY
 
   # Job 2: Build and test affected packages
   build-and-test:
@@ -203,11 +207,26 @@ jobs:
     secrets:
       aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
 
-  # Job 5: Summary
+  # Job 5: Deploy scryscraper
+  # This job calls the reusable deployment workflow
+  deploy-scryscraper:
+    needs: [detect-affected, build-and-test]
+    if: fromJSON(needs.detect-affected.outputs.has-scryscraper) || fromJSON(needs.detect-affected.outputs.has-cloudwatch)
+    uses: ./.github/workflows/reusable-deploy-lambda.yml
+    with:
+      app-name: scryscraper
+      environment: ${{ needs.detect-affected.outputs.environment }}
+      working-directory: apps/scryscraper
+      output-key: ScryScraperFunction
+      artefact-name: build-artefacts
+    secrets:
+      aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
+
+  # Job 6: Summary
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [detect-affected, deploy-heartbeat, deploy-pulse]
+    needs: [detect-affected, deploy-heartbeat, deploy-pulse, deploy-scryscraper]
     if: always()
     steps:
       - name: Generate summary
@@ -227,4 +246,9 @@ jobs:
           if [ "${{ needs.detect-affected.outputs.has-pulse }}" == "true" ] || [ "${{ needs.detect-affected.outputs.has-cloudwatch }}" == "true" ]; then
             STATUS="${{ needs.deploy-pulse.result }}"
             echo "| pulse-publisher | $STATUS |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.detect-affected.outputs.has-scryscraper }}" == "true" ] || [ "${{ needs.detect-affected.outputs.has-cloudwatch }}" == "true" ]; then
+            STATUS="${{ needs.deploy-scryscraper.result }}"
+            echo "| scryscraper | $STATUS |" >> $GITHUB_STEP_SUMMARY
           fi

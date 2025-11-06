@@ -1,0 +1,72 @@
+name: Deploy Scryscraper
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+# Prevent concurrent deployments per environment
+concurrency:
+  group: scryscraper-deployment-${{ github.event.inputs.environment }}
+  cancel-in-progress: false # This will apparently be queued if there is a collision
+
+permissions:
+  id-token: write # Required for OIDC authentication with AWS
+  contents: read
+
+jobs:
+  # Job 1: Build and test scryscraper
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build scryscraper
+        run: pnpm --filter scryscraper... build
+
+      - name: Test scryscraper
+        run: pnpm --filter scryscraper test
+
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scryscraper-build-artefacts
+          path: apps/scryscraper/dist/
+          retention-days: 7
+
+  # Job 2: Deploy scryscraper
+  # This job calls the reusable deployment workflow
+  # AWS credentials are passed explicitly from repository secrets
+  deploy:
+    needs: build-and-test
+    uses: ./.github/workflows/reusable-deploy-lambda.yml
+    with:
+      app-name: scryscraper
+      environment: ${{ github.event.inputs.environment }}
+      working-directory: apps/scryscraper
+      output-key: ScryScraperFunction
+      artefact-name: scryscraper-build-artefacts
+    secrets:
+      aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
