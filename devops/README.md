@@ -1,20 +1,17 @@
 # DevOps Infrastructure
 
-This directory contains CloudFormation templates for managing the IAM and CloudWatch infrastructure for the monorepo-fem project.
+CloudFormation templates for IAM and CloudWatch infrastructure.
 
-## Overview
+See [../docs/AWS_OIDC_SETUP.md](../docs/AWS_OIDC_SETUP.md) for architecture overview.
 
-Each environment (dev, exp, prod) has its own CloudFormation template that creates:
+## Resources Created Per Environment
 
 1. **OIDC Provider** - GitHub Actions authentication without long-lived credentials
-2. **PolicyManager IAM Role** - Used by GitHub Actions to manage IAM policies during deployments
-3. **Deployment IAM Roles** - Three separate roles for deploying each application
-   - HeartbeatPublisher deployment role
-   - PulsePublisher deployment role
-   - ScrysScraper deployment role
-4. **Shared Metrics CloudWatch Log Group** - Centralised logging for application metrics
+2. **PolicyManager IAM Role** - Manages IAM policies during SAM deployments
+3. **Deployment IAM Roles** - Three roles (HeartbeatPublisher, PulsePublisher, ScrysScraper)
+4. **Shared Metrics CloudWatch Log Group** - Centralised application metrics
 
-All resources are scoped to the `monorepo-fem-*` namespace and environment-specific naming to ensure least-privilege access and prevent cross-environment access.
+Resources are scoped to `monorepo-fem-*` namespace with environment-specific naming.
 
 ## Directory Structure
 
@@ -28,100 +25,29 @@ All resources are scoped to the `monorepo-fem-*` namespace and environment-speci
       └── monorepo-fem-github-actions-sam-deploy-prod.yml
 ```
 
-## Resources Created
+## Role Permissions Summary
 
-### PolicyManager Role
+See CloudFormation templates in this directory for complete policy definitions.
 
-The PolicyManager role has permissions to:
+**PolicyManager Role:**
+- Create/update IAM policies for `monorepo-fem-*` resources
+- Attach policies to `monorepo-fem-*` roles
+- Pass roles to AWS services (required for SAM deployments)
+- Deploy CloudFormation stacks for `monorepo-fem-*` applications
+- Cannot delete policies or manage resources outside namespace
 
-- **Create and update IAM policies** for `monorepo-fem-*` resources
-- **Attach policies** to `monorepo-fem-*` roles
-- **Pass roles** to AWS services (required for SAM deployments)
-- **Deploy CloudFormation stacks** for `monorepo-fem-*` applications
-- **Manage Lambda functions** with `monorepo-fem-*` naming
-- **Configure EventBridge rules** for scheduled executions
-- **Manage S3 buckets** for SAM deployment artefacts
+**Deployment Roles:** (HeartbeatPublisher, PulsePublisher, ScrysScraper)
+- Scoped to application-specific resources only
+- Trust policy: Only `deploy-<env>` branch from `sephnescence/monorepo-fem`
+- See templates for detailed permissions per application
 
-The role does **not** have permissions to:
+**OIDC Provider:** `https://token.actions.githubusercontent.com`
+- Audience: `sts.amazonaws.com`
+- Subject: `repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-<env>`
 
-- Delete policies (decommissioning apps is out of scope)
-- Manage resources outside the `monorepo-fem-*` namespace
-
-### Deployment Roles
-
-Each application has its own dedicated deployment role with permissions scoped to only that application's resources. This enforces least-privilege at the role level.
-
-#### HeartbeatPublisher Deployment Role
-
-**Role Name**: `GitHubActionsDeployRole-HeartbeatPublisher-<env>`
-
-Permissions scoped to:
-- CloudFormation stacks matching `monorepo-fem-heartbeat-publisher-*`
-- Lambda functions matching `heartbeat-publisher-*`
-- IAM roles matching `heartbeat-publisher-*`
-- EventBridge rules matching `heartbeat-publisher-*`
-- CloudWatch logs matching `/aws/lambda/heartbeat-publisher-*` and `/monorepo-fem/heartbeats-*`
-- SAM deployment S3 buckets (`aws-sam-cli-managed-default-*`)
-
-Trust policy: Only `deploy-<env>` branch from `sephnescence/monorepo-fem` repository
-
-#### PulsePublisher Deployment Role
-
-**Role Name**: `GitHubActionsDeployRole-PulsePublisher-<env>`
-
-Permissions scoped to:
-- CloudFormation stacks matching `monorepo-fem-pulse-publisher-*`
-- Lambda functions matching `pulse-publisher-*`
-- IAM roles matching `pulse-publisher-*`
-- EventBridge rules matching `pulse-publisher-*`
-- CloudWatch logs matching `/aws/lambda/pulse-publisher-*` and `/monorepo-fem/pulse-*`
-- SAM deployment S3 buckets (`aws-sam-cli-managed-default-*`)
-
-Trust policy: Only `deploy-<env>` branch from `sephnescence/monorepo-fem` repository
-
-#### ScrysScraper Deployment Role
-
-**Role Name**: `GitHubActionsDeployRole-ScrysScraper-<env>`
-
-Permissions scoped to:
-- CloudFormation stacks matching `monorepo-fem-scryscraper-*`
-- Lambda functions matching `scryscraper-*`
-- IAM roles matching `scryscraper-*`
-- EventBridge rules matching `scryscraper-*`
-- CloudWatch logs matching `/aws/lambda/scryscraper-*`
-- DynamoDB tables matching `monorepo-fem-scryscraper-*`
-- S3 buckets matching `monorepo-fem-scryscraper-cache-*`
-- SAM deployment S3 buckets (`aws-sam-cli-managed-default-*`)
-
-Trust policy: Only `deploy-<env>` branch from `sephnescence/monorepo-fem` repository
-
-**Note**: ScrysScraper has additional permissions for DynamoDB and S3 cache buckets specific to its scraping functionality.
-
-### OIDC Provider
-
-**Provider URL**: `https://token.actions.githubusercontent.com`
-
-The OIDC provider is created as part of each environment's CloudFormation template and allows GitHub Actions to assume AWS IAM roles without storing long-lived AWS credentials.
-
-All deployment roles trust this OIDC provider and enforce that:
-1. The token audience is `sts.amazonaws.com`
-2. The subject claim matches `repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-<env>`
-
-This ensures that only workflows running on the correct branch can assume the roles.
-
-### Metrics Log Group
-
-Each environment has a shared CloudWatch log group: `/aws/metrics/monorepo-fem-<env>`
-
-Applications can:
-
-- **Create log streams** with app-specific names (e.g., `heartbeat-publisher-20251107-123456`)
-- **Write logs** to their own log streams
-
-Applications cannot:
-
-- Modify the log group itself
-- Access log streams created by other applications
+**Metrics Log Group:** `/aws/metrics/monorepo-fem-<env>`
+- Apps can create streams and write logs
+- Apps cannot modify log group or access other apps' streams
 
 ## Bootstrap Process
 
@@ -410,64 +336,14 @@ aws cloudformation update-stack \
 
 Replace `<env>` with `dev`, `exp`, or `prod`.
 
-## Workflow Integration
-
-The `.github/workflows/reusable-deploy-lambda.yml` workflow automatically checks for the PolicyManager role before deployment:
-
-1. **Role exists** - Deployment proceeds normally
-2. **Role missing** - Workflow:
-   - Creates a PR with bootstrap instructions
-   - Outputs PR URL
-   - Exits gracefully with a warning
-   - Does not fail the build
-
-This ensures that deployments cannot proceed without proper infrastructure, while providing clear guidance on how to resolve the issue.
-
 ## Troubleshooting
 
-### OIDC Authentication Failures
+See [../docs/TROUBLESHOOTING_DEPLOYMENTS.md](../docs/TROUBLESHOOTING_DEPLOYMENTS.md) for comprehensive troubleshooting guidance.
 
-If GitHub Actions cannot assume the role:
-
-1. Verify the OIDC provider exists:
-   ```bash
-   aws iam list-open-id-connect-providers
-   ```
-
-2. Check the trust policy on the role:
-   ```bash
-   aws iam get-role --role-name monorepo-fem-policy-manager-<env>
-   ```
-
-3. Ensure the deployment branch matches the trust policy:
-   - Dev: `deploy-dev`
-   - Exp: `deploy-exp`
-   - Prod: `deploy-prod`
-
-### Permission Denied Errors
-
-If the PolicyManager role cannot perform an action:
-
-1. Check CloudTrail for the specific denied action
-2. Verify the action is scoped to `monorepo-fem-*` resources
-3. Update the CloudFormation template if needed
-4. Redeploy the stack using the update command above
-
-### Stack Creation Failures
-
-If stack creation fails:
-
-1. Check the CloudFormation events:
-   ```bash
-   aws cloudformation describe-stack-events \
-     --stack-name monorepo-fem-devops-<env> \
-     --region ap-southeast-2
-   ```
-
-2. Common issues:
-   - **Role already exists** - Delete the old role or use update-stack instead
-   - **Insufficient permissions** - Ensure your AWS credentials have admin access
-   - **Parameter validation** - Check that all parameter values are correct
+**Quick checks:**
+- OIDC provider exists: `aws iam list-open-id-connect-providers`
+- Check role trust policy: `aws iam get-role --role-name monorepo-fem-policy-manager-<env>`
+- View stack events: `aws cloudformation describe-stack-events --stack-name monorepo-fem-devops-<env>`
 
 ## Security Considerations
 
@@ -477,79 +353,9 @@ If stack creation fails:
 4. **No Deletion Permissions** - PolicyManager cannot delete policies or resources
 5. **Audit Trail** - All actions are logged in CloudTrail
 
-## Adding a New Application Deployment Role
+## Adding a New Application
 
-When adding a new application to the monorepo, follow these steps:
-
-1. **Create IAM policy JSON** in `.github/policies/<app-name>-deploy-policy.json`:
-   - Use existing policies as templates
-   - Scope all permissions to the app's resources (e.g., `<app-name>-*`)
-   - Include all necessary AWS services (CloudFormation, Lambda, S3, etc.)
-   - Use placeholders: `${AWS_ACCOUNT_ID}`, `${AWS_REGION}`, `${ENVIRONMENT}`
-
-2. **Add role to CloudFormation templates**:
-   - Add a new `AWS::IAM::Role` resource in each environment template
-   - Name the role: `GitHubActionsDeployRole-<AppName>-${Environment}`
-   - Set `MaxSessionDuration: 3600` (1 hour)
-   - Configure OIDC trust policy:
-     ```yaml
-     AssumeRolePolicyDocument:
-       Version: '2012-10-17'
-       Statement:
-         - Effect: Allow
-           Principal:
-             Federated: !GetAtt GitHubOIDCProvider.Arn
-           Action: 'sts:AssumeRoleWithWebIdentity'
-           Condition:
-             StringEquals:
-               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
-             StringLike:
-               'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${DeploymentBranch}'
-     ```
-   - Inline the policy from step 1, converting placeholders to CloudFormation intrinsic functions
-   - Add appropriate tags (Name, Environment, Application, ManagedBy)
-
-3. **Add CloudFormation outputs**:
-   ```yaml
-   <AppName>DeployRoleArn:
-     Description: ARN of the <App Name> deployment role
-     Value: !GetAtt <AppName>DeployRole.Arn
-     Export:
-       Name: !Sub 'monorepo-fem-<app-name>-deploy-role-arn-${Environment}'
-   ```
-
-4. **Update all three environment templates** (dev, exp, prod)
-
-5. **Validate templates**:
-   ```bash
-   aws cloudformation validate-template \
-     --template-body file://devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml \
-     --region ap-southeast-2
-   ```
-
-6. **Update CloudFormation stacks**:
-   ```bash
-   aws cloudformation update-stack \
-     --stack-name monorepo-fem-devops-dev \
-     --template-body file://devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml \
-     --capabilities CAPABILITY_NAMED_IAM \
-     --region ap-southeast-2
-   ```
-
-7. **Retrieve and add GitHub secrets**:
-   ```bash
-   APP_DEPLOY_ARN_DEV=$(aws cloudformation describe-stacks \
-     --stack-name monorepo-fem-devops-dev \
-     --region ap-southeast-2 \
-     --query 'Stacks[0].Outputs[?OutputKey==`<AppName>DeployRoleArn`].OutputValue' \
-     --output text)
-
-   gh secret set AWS_<APP_NAME>_DEPLOY_ROLE_ARN_DEV --body "$APP_DEPLOY_ARN_DEV"
-   ```
-
-8. **Update GitHub workflows** to use the new role ARN
-
-9. **Document the new role** in this README under "Deployment Roles"
+See [../docs/POLICY_MANAGEMENT.md](../docs/POLICY_MANAGEMENT.md) for instructions on adding a new application's deployment role.
 
 ## Resource Naming Conventions
 
@@ -580,12 +386,3 @@ This ensures consistent naming and easy identification of resources across all e
 - **Prod Log Group**: 30 days retention
 - **All Resources**: Retain on delete (prevent accidental data loss)
 
-## Future Enhancements
-
-Potential improvements to consider:
-
-1. **CloudFormation Drift Detection** - Automated detection of manual changes
-2. **Cross-Region Replication** - For disaster recovery
-3. **Cost Allocation Tags** - For better cost tracking
-4. **SNS Notifications** - Alert on stack failures
-5. **Automated Testing** - Validate templates before deployment

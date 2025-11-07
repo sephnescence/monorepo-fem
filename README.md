@@ -1,24 +1,44 @@
 # Monorepo FEM
 
-Following along with various FEM courses over time:
+A TypeScript monorepo demonstrating serverless AWS architecture with least-privilege IAM roles, OIDC authentication, and infrastructure as code.
+
+## What is this?
+
+Following along with various FEM courses:
 
 1. [TypeScript Monorepos: Architect Maintainable Codebases](https://frontendmasters.com/courses/monorepos-v2/) - Mike North
 1. [Cursor & Claude Code: Professional AI Setup](https://frontendmasters.com/courses/pro-ai/) - Steve Kinney
 
 ## Mission
 
-Communication skills are the future of software engineering. This project explores using AI (primarily Claude) to build empathy for different roles and communicate more effectively across product, engineering, and business contexts
+Communication skills are the future of software engineering. This project explores using AI (primarily Claude) to build empathy for different roles and communicate more effectively across product, engineering, and business contexts.
 
-By creating a team of subagents, I'm developing a practice of explicitly reasoning about architectural decisions - treating AI as a conversation partner rather than a code generator
+By creating a team of subagents, I'm developing a practice of explicitly reasoning about architectural decisions - treating AI as a conversation partner rather than a code generator.
 
 **Core principles:**
 
-- **Documentation over memorisation** - Civil engineers design for unknown future maintainers. Will I remember everything after 5-10 years? I should design for that future maintainer, too. It's gonna be me (Awful throwback haha)
+- **Documentation over memorisation** - Design for unknown future maintainers
 - **Testing & monitoring are non-negotiable** - Observability outlasts individual tenure
-- **Leverage AI for velocity, not shortcuts** - Always understand the "why" behind decisions. Copy/pasting doesn't deepen understanding either. Stack Overflow may as well have been our first agent
+- **Leverage AI for velocity, not shortcuts** - Always understand the "why" behind decisions
 - **Communication scales; implementation details don't** - Understanding users and articulating trade-offs matters more than implementation details
 
-This approach aims to help me learn efficiently, reduce cognitive load, and work in a way that's more natural for my brain
+## Quick Start
+
+**For new developers:** See [DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md)
+
+**For contributors:** See [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+**Prerequisites:**
+```sh
+# Install pnpm
+npm install -g pnpm
+
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm lerna run lint,build,test
+```
 
 ## Spell Checking Configuration
 
@@ -84,75 +104,23 @@ Note: The current node_modules structure cannot be read by npm due to pnpm's sym
 
 Feel free to offer updates to this list
 
-## Deployment Architecture
+## Architecture
 
-This repository uses a per-app, per-environment IAM role architecture for AWS deployments via GitHub Actions and OIDC authentication.
+**Applications:**
+- heartbeat-publisher - Scheduled Lambda publishing heartbeat events
+- pulse-publisher - Scheduled Lambda publishing pulse events
+- scryscraper - Web scraping Lambda
 
-### Architecture Overview
+**Environments:** dev, exp, prod
 
-- **3 Applications**: heartbeat-publisher, pulse-publisher, scryscraper
-- **3 Environments**: dev, exp, prod
-- **9 Deployment Roles**: One dedicated IAM role per application per environment
-- **3 Policy Manager Roles**: One per environment for managing IAM policies
+**Security model:** Per-app, per-environment IAM roles with OIDC authentication (9 deployment roles + 3 policy manager roles)
 
-### Security Benefits
+**Branch strategy:** `main` → `deploy-dev` → `deploy-exp` → `deploy-prod`
 
-- **Least Privilege**: Each role can only access resources for its specific application
-- **Blast Radius Reduction**: A compromised role cannot affect other applications
-- **Environment Isolation**: Dev deployments cannot accidentally affect prod resources
-- **Clear Audit Trail**: CloudTrail logs show exactly which app/environment was accessed
-
-### Branch Strategy
-
-Deployments are triggered by pushing to environment-specific branches:
-
-- `deploy-dev` - Triggers deployments to the development environment
-- `deploy-exp` - Triggers deployments to the experimental/staging environment
-- `deploy-prod` - Triggers deployments to the production environment
-
-The `main` branch does not trigger automatic deployments. To deploy:
-
-1. Merge your changes to `main`
-2. Merge `main` into the appropriate deployment branch
-3. Push the deployment branch to trigger the deployment
-
-You can also manually trigger deployments using workflow dispatch.
-
-### Documentation
-
-- **[AWS_OIDC_SETUP.md](./docs/AWS_OIDC_SETUP.md)** - Overview of OIDC authentication and multi-role architecture
-- **[BOOTSTRAP_IAM_ROLES.md](./docs/BOOTSTRAP_IAM_ROLES.md)** - Step-by-step infrastructure setup guide
-- **[POLICY_MANAGEMENT.md](./docs/POLICY_MANAGEMENT.md)** - How to manage and update IAM policies
-- **[TESTING_PLAN_IAM_SPLIT.md](./docs/TESTING_PLAN_IAM_SPLIT.md)** - Testing strategy and validation
-- **[TROUBLESHOOTING_DEPLOYMENTS.md](./docs/TROUBLESHOOTING_DEPLOYMENTS.md)** - Common deployment issues and solutions
-- **[DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md)** - Guide for new team members
-- **[ADR_IAM_ROLE_SPLIT.md](./docs/ADR_IAM_ROLE_SPLIT.md)** - Architecture decision record
-
-### Quick Start for Deployments
-
-1. **Bootstrap infrastructure** (one-time setup):
-   ```sh
-   # Deploy dev environment infrastructure
-   aws cloudformation deploy \
-     --template-file devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml \
-     --stack-name monorepo-fem-devops-dev \
-     --capabilities CAPABILITY_NAMED_IAM \
-     --region ap-southeast-2
-   ```
-
-2. **Configure GitHub secrets** with role ARNs from CloudFormation outputs
-
-3. **Deploy an application** by pushing to a deployment branch:
-   ```sh
-   git checkout main
-   # Make changes
-   git commit -m "Update application"
-   git push
-
-   # Merge to deployment branch
-   git checkout deploy-dev
-   git merge main
-   git push  # This triggers the deployment
-   ```
-
-For detailed instructions, see [BOOTSTRAP_IAM_ROLES.md](./docs/BOOTSTRAP_IAM_ROLES.md).
+**Documentation:**
+- [AWS_OIDC_SETUP.md](./docs/AWS_OIDC_SETUP.md) - OIDC authentication overview
+- [BOOTSTRAP_IAM_ROLES.md](./docs/BOOTSTRAP_IAM_ROLES.md) - Infrastructure setup
+- [POLICY_MANAGEMENT.md](./docs/POLICY_MANAGEMENT.md) - IAM policy management
+- [devops/README.md](./devops/README.md) - Infrastructure details and bootstrap process
+- [TROUBLESHOOTING_DEPLOYMENTS.md](./docs/TROUBLESHOOTING_DEPLOYMENTS.md) - Common issues
+- [ADR_IAM_ROLE_SPLIT.md](./docs/ADR_IAM_ROLE_SPLIT.md) - Architecture decision record

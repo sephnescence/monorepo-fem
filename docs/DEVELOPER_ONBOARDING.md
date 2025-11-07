@@ -513,43 +513,25 @@ sam build --template apps/heartbeat-publisher/template.yaml
 
 ### Documentation
 
-- **[AWS_OIDC_SETUP.md](./AWS_OIDC_SETUP.md)** - OIDC and IAM architecture
-- **[BOOTSTRAP_IAM_ROLES.md](./BOOTSTRAP_IAM_ROLES.md)** - Infrastructure setup
-- **[POLICY_MANAGEMENT.md](./POLICY_MANAGEMENT.md)** - IAM policy management
-- **[TROUBLESHOOTING_DEPLOYMENTS.md](./TROUBLESHOOTING_DEPLOYMENTS.md)** - Common issues
-- **[TESTING_PLAN_IAM_SPLIT.md](./TESTING_PLAN_IAM_SPLIT.md)** - Testing strategy
+- [AWS_OIDC_SETUP.md](./AWS_OIDC_SETUP.md) - OIDC and IAM architecture
+- [BOOTSTRAP_IAM_ROLES.md](./BOOTSTRAP_IAM_ROLES.md) - Infrastructure setup
+- [POLICY_MANAGEMENT.md](./POLICY_MANAGEMENT.md) - IAM policy management
+- [TROUBLESHOOTING_DEPLOYMENTS.md](./TROUBLESHOOTING_DEPLOYMENTS.md) - Common issues
 
-### Useful Commands Reference
+### Useful Commands
 
+See [../devops/README.md](../devops/README.md) for bootstrap commands.
+
+**Local development:**
 ```sh
-# Build and test locally
 sam build --template apps/heartbeat-publisher/template.yaml
 sam local invoke HeartbeatPublisherFunction
+```
 
-# Deploy infrastructure
-aws cloudformation deploy \
-  --template-file devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml \
-  --stack-name monorepo-fem-devops-dev \
-  --capabilities CAPABILITY_NAMED_IAM
-
-# Check Lambda function
-aws lambda get-function --function-name heartbeat-publisher-dev-function
-
-# View logs
+**Monitoring:**
+```sh
 aws logs tail /aws/lambda/heartbeat-publisher-dev-function --follow
-
-# List CloudFormation stacks
-aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE
-
-# Check role permissions
-aws iam get-role-policy \
-  --role-name GitHubActionsDeployRole-HeartbeatPublisher-dev \
-  --policy-name heartbeat-publisher-deploy-policy-dev
-
-# View CloudTrail events
-aws cloudtrail lookup-events \
-  --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity \
-  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S)
+aws lambda get-function --function-name heartbeat-publisher-dev-function
 ```
 
 ### External Resources
@@ -557,8 +539,6 @@ aws cloudtrail lookup-events \
 - [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
 - [AWS SAM Developer Guide](https://docs.aws.amazon.com/serverless-application-model/)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [CloudFormation User Guide](https://docs.aws.amazon.com/cloudformation/)
-- [IAM Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
 
 ## Next Steps
 
