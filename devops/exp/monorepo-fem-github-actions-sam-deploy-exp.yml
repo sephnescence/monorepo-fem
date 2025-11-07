@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  DevOps infrastructure for monorepo-fem exp environment.
+  DevOps infrastructure for monorepo-fem dev environment.
   This template creates:
   - PolicyManager IAM role with OIDC authentication for GitHub Actions
   - Shared CloudWatch log group for application metrics
@@ -71,167 +71,12 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
-  # PolicyManager role for managing IAM policies during SAM deployments
-  # This role is assumed by GitHub Actions via OIDC
-  PolicyManagerRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub 'monorepo-fem-policy-manager-${Environment}'
-      Description: !Sub 'Policy management role for monorepo-fem ${Environment} environment'
-
-      # OIDC trust policy - allows GitHub Actions to assume this role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !GetAtt GitHubOIDCProvider.Arn
-            Action: 'sts:AssumeRoleWithWebIdentity'
-            Condition:
-              StringEquals:
-                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
-              StringLike:
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${DeploymentBranch}'
-
-      # Permissions for managing IAM policies and roles within monorepo-fem namespace
-      Policies:
-        - PolicyName: !Sub 'monorepo-fem-policy-management-${Environment}'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # Allow creating and updating IAM policies for monorepo-fem resources
-              - Effect: Allow
-                Action:
-                  - 'iam:CreatePolicy'
-                  - 'iam:CreatePolicyVersion'
-                  - 'iam:GetPolicy'
-                  - 'iam:GetPolicyVersion'
-                  - 'iam:ListPolicyVersions'
-                Resource: !Sub 'arn:aws:iam::${AWSAccountId}:policy/monorepo-fem-*'
-
-              # Allow attaching policies to monorepo-fem roles and resources
-              - Effect: Allow
-                Action:
-                  - 'iam:AttachRolePolicy'
-                  - 'iam:DetachRolePolicy'
-                  - 'iam:GetRole'
-                  - 'iam:GetRolePolicy'
-                  - 'iam:PutRolePolicy'
-                  - 'iam:DeleteRolePolicy'
-                  - 'iam:ListAttachedRolePolicies'
-                  - 'iam:ListRolePolicies'
-                Resource: !Sub 'arn:aws:iam::${AWSAccountId}:role/monorepo-fem-*'
-
-              # Allow passing monorepo-fem roles to services (required for SAM deployments)
-              - Effect: Allow
-                Action:
-                  - 'iam:PassRole'
-                Resource: !Sub 'arn:aws:iam::${AWSAccountId}:role/monorepo-fem-*'
-
-              # Allow reading IAM resources for validation
-              - Effect: Allow
-                Action:
-                  - 'iam:ListPolicies'
-                  - 'iam:ListRoles'
-                Resource: '*'
-
-        # CloudWatch Logs permissions for managing application metrics
-        - PolicyName: !Sub 'monorepo-fem-cloudwatch-management-${Environment}'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # Allow apps to create log streams within the shared log group
-              # Pattern allows app-specific log streams (e.g., heartbeat-publisher-*)
-              - Effect: Allow
-                Action:
-                  - 'logs:CreateLogStream'
-                  - 'logs:PutLogEvents'
-                Resource: !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-${Environment}:log-stream:*'
-
-              # Allow reading log group configuration (but not modifying)
-              - Effect: Allow
-                Action:
-                  - 'logs:DescribeLogGroups'
-                  - 'logs:DescribeLogStreams'
-                Resource: !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-${Environment}:*'
-
-        # SAM deployment permissions
-        - PolicyName: !Sub 'monorepo-fem-sam-deployment-${Environment}'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # CloudFormation permissions for SAM deployments
-              - Effect: Allow
-                Action:
-                  - 'cloudformation:CreateStack'
-                  - 'cloudformation:UpdateStack'
-                  - 'cloudformation:DescribeStacks'
-                  - 'cloudformation:DescribeStackEvents'
-                  - 'cloudformation:DescribeStackResources'
-                  - 'cloudformation:GetTemplate'
-                  - 'cloudformation:ValidateTemplate'
-                  - 'cloudformation:DescribeChangeSet'
-                  - 'cloudformation:CreateChangeSet'
-                  - 'cloudformation:ExecuteChangeSet'
-                Resource: !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem-*'
-
-              # S3 permissions for SAM deployment artifacts
-              - Effect: Allow
-                Action:
-                  - 's3:CreateBucket'
-                  - 's3:GetObject'
-                  - 's3:PutObject'
-                  - 's3:ListBucket'
-                  - 's3:GetBucketLocation'
-                  - 's3:PutBucketVersioning'
-                  - 's3:GetBucketVersioning'
-                Resource:
-                  - !Sub 'arn:aws:s3:::monorepo-fem-*'
-                  - !Sub 'arn:aws:s3:::monorepo-fem-*/*'
-
-              # Lambda permissions for SAM deployments
-              - Effect: Allow
-                Action:
-                  - 'lambda:CreateFunction'
-                  - 'lambda:UpdateFunctionCode'
-                  - 'lambda:UpdateFunctionConfiguration'
-                  - 'lambda:GetFunction'
-                  - 'lambda:GetFunctionConfiguration'
-                  - 'lambda:ListFunctions'
-                  - 'lambda:PublishVersion'
-                  - 'lambda:CreateAlias'
-                  - 'lambda:UpdateAlias'
-                  - 'lambda:GetAlias'
-                  - 'lambda:AddPermission'
-                  - 'lambda:RemovePermission'
-                  - 'lambda:GetPolicy'
-                Resource: !Sub 'arn:aws:lambda:${AWSRegion}:${AWSAccountId}:function:monorepo-fem-*'
-
-              # EventBridge permissions for Lambda triggers
-              - Effect: Allow
-                Action:
-                  - 'events:PutRule'
-                  - 'events:DescribeRule'
-                  - 'events:PutTargets'
-                  - 'events:RemoveTargets'
-                  - 'events:EnableRule'
-                  - 'events:DisableRule'
-                Resource: !Sub 'arn:aws:events:${AWSRegion}:${AWSAccountId}:rule/monorepo-fem-*'
-
-              # CloudWatch Logs permissions for Lambda log groups
-              - Effect: Allow
-                Action:
-                  - 'logs:CreateLogGroup'
-                  - 'logs:DescribeLogGroups'
-                  - 'logs:PutRetentionPolicy'
-                Resource: !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/lambda/monorepo-fem-*'
-
   # Deployment role for Heartbeat Publisher application
   # Scoped to only deploy and manage heartbeat-publisher resources
   HeartbeatPublisherDeployRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'GitHubActionsDeployRole-HeartbeatPublisher-${Environment}'
+      RoleName: !Sub 'AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--${Environment}'
       Description: !Sub 'Deployment role for heartbeat-publisher ${Environment} environment'
       MaxSessionDuration: 3600
 
@@ -378,6 +223,14 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:events:${AWSRegion}:*:rule/heartbeat-publisher-*'
 
+              - Sid: PolicyManagementAccess
+                Effect: Allow
+                Action:
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListAttachedRolePolicies'
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWSAccountId}:role/AWS-OIDC-ROLE-ARN--monorepo-fem--*--${Environment}'
+
       Tags:
         - Key: Name
           Value: !Sub 'GitHubActionsDeployRole-HeartbeatPublisher-${Environment}'
@@ -393,7 +246,7 @@ Resources:
   PulsePublisherDeployRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'GitHubActionsDeployRole-PulsePublisher-${Environment}'
+      RoleName: !Sub 'AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--${Environment}'
       Description: !Sub 'Deployment role for pulse-publisher ${Environment} environment'
       MaxSessionDuration: 3600
 
@@ -540,6 +393,14 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:events:${AWSRegion}:*:rule/pulse-publisher-*'
 
+              - Sid: PolicyManagementAccess
+                Effect: Allow
+                Action:
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListAttachedRolePolicies'
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWSAccountId}:role/AWS-OIDC-ROLE-ARN--monorepo-fem--*--${Environment}'
+
       Tags:
         - Key: Name
           Value: !Sub 'GitHubActionsDeployRole-PulsePublisher-${Environment}'
@@ -555,7 +416,7 @@ Resources:
   ScryScraperDeployRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'GitHubActionsDeployRole-ScrysScraper-${Environment}'
+      RoleName: !Sub 'AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--${Environment}'
       Description: !Sub 'Deployment role for scryscraper ${Environment} environment'
       MaxSessionDuration: 3600
 
@@ -733,6 +594,14 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:dynamodb:${AWSRegion}:${AWSAccountId}:table/monorepo-fem-scryscraper-*'
 
+              - Sid: PolicyManagementAccess
+                Effect: Allow
+                Action:
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListAttachedRolePolicies'
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWSAccountId}:role/AWS-OIDC-ROLE-ARN--monorepo-fem--*--${Environment}'
+
       Tags:
         - Key: Name
           Value: !Sub 'GitHubActionsDeployRole-ScrysScraper-${Environment}'
@@ -742,19 +611,8 @@ Resources:
           Value: scryscraper
         - Key: ManagedBy
           Value: CloudFormation
+
 Outputs:
-  PolicyManagerRoleArn:
-    Description: ARN of the PolicyManager IAM role
-    Value: !GetAtt PolicyManagerRole.Arn
-    Export:
-      Name: !Sub 'monorepo-fem-policy-manager-role-arn-${Environment}'
-
-  PolicyManagerRoleName:
-    Description: Name of the PolicyManager IAM role
-    Value: !Ref PolicyManagerRole
-    Export:
-      Name: !Sub 'monorepo-fem-policy-manager-role-name-${Environment}'
-
   MetricsLogGroupName:
     Description: Name of the shared metrics CloudWatch log group
     Value: !Ref MetricsLogGroup

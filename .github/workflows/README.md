@@ -38,7 +38,7 @@ Before each deployment, the workflow validates that the deployed IAM policy matc
    - `scryscraper-deploy-policy.json`
 
 2. **Validation process**:
-   - The workflow assumes the PolicyManager role (read-only access to IAM)
+   - The workflow uses the deployment role (which has read access to IAM policies)
    - Retrieves the current deployed policy from the deployment role
    - Normalises both policies (substitutes placeholders like `${AWS_ACCOUNT_ID}`)
    - Compares the policies using semantic JSON comparison
@@ -108,7 +108,7 @@ Policy validation in dev/exp generates warnings instead of failures because:
 
 ### Why Validation Doesn't Block Deployments (Skip on Error)
 
-If the policy validation step itself fails (e.g., PolicyManager role doesn't exist, network issues), the deployment continues because:
+If the policy validation step itself fails (e.g., network issues, permissions issues), the deployment continues because:
 
 - Infrastructure issues shouldn't block application deployments
 - Policy validation is informational, not critical to deployment success
@@ -122,25 +122,17 @@ Each app and environment combination requires specific GitHub secrets:
 ### Deployment Role Secrets (Per App, Per Environment)
 
 ```
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD
 
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD
 
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__DEV
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__EXP
-AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__PROD
-```
-
-### Policy Manager Role Secrets (Per Environment)
-
-```
-AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__DEV
-AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__EXP
-AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__PROD
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__DEV
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__EXP
+AWS_OIDC_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__PROD
 ```
 
 ### Retrieving Role ARNs
@@ -153,12 +145,6 @@ aws cloudformation describe-stacks \
   --stack-name monorepo-fem-devops-dev \
   --query 'Stacks[0].Outputs[?OutputKey==`HeartbeatPublisherDeployRoleArn`].OutputValue' \
   --output text
-
-# Get policy manager role ARN
-aws cloudformation describe-stacks \
-  --stack-name monorepo-fem-devops-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`PolicyManagerRoleArn`].OutputValue' \
-  --output text
 ```
 
 See `devops/README.md` for detailed instructions.
@@ -168,14 +154,13 @@ See `devops/README.md` for detailed instructions.
 The naming convention is:
 
 ```
-AWS_OIDC_<ROLE_TYPE>_ROLE_ARN__<REPOSITORY>__<APP>__<ENVIRONMENT>
+AWS_OIDC_ROLE_ARN__<REPOSITORY>__<APP>__<ENVIRONMENT>
 ```
 
 Where:
 
-- `ROLE_TYPE`: `DEPLOY` or `POLICY_MANAGER`
 - `REPOSITORY`: `MONOREPO_FEM` (repository name in SCREAMING_SNAKE_CASE)
-- `APP`: App name in SCREAMING_SNAKE_CASE (only for deploy roles)
+- `APP`: App name in SCREAMING_SNAKE_CASE
 - `ENVIRONMENT`: `DEV`, `EXP`, or `PROD`
 
 Components are separated by double underscores (`__`) for clarity.
@@ -197,8 +182,7 @@ Components are separated by double underscores (`__`) for clarity.
 
 | Secret | Required | Description |
 |--------|----------|-------------|
-| `aws-oidc-deploy-role-arn` | Yes | App-specific deployment role ARN |
-| `aws-oidc-policy-manager-role-arn` | Yes | Environment-specific policy manager role ARN |
+| `aws-oidc-role-arn` | Yes | App-specific and environment-specific deployment role ARN |
 
 ### Workflow Steps
 
@@ -207,16 +191,15 @@ Components are separated by double underscores (`__`) for clarity.
 3. Install dependencies
 4. Download build artefacts
 5. Configure AWS credentials (assume deployment role)
-6. **Validate IAM policy drift** (new step)
-7. Check PolicyManager role exists
-8. Validate SAM template
-9. Check if stack exists
-10. SAM build
-11. SAM deploy
-12. Get deployment info from CloudFormation outputs
-13. Health check (invoke Lambda)
-14. Monitor CloudWatch alarms
-15. Clean up on failure (if needed)
+6. **Validate IAM policy drift**
+7. Validate SAM template
+8. Check if stack exists
+9. SAM build
+10. SAM deploy
+11. Get deployment info from CloudFormation outputs
+12. Health check (invoke Lambda)
+13. Monitor CloudWatch alarms
+14. Clean up on failure (if needed)
 
 ## Troubleshooting
 

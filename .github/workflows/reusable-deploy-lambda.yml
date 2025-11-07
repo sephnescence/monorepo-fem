@@ -49,11 +49,8 @@ on:
         required: true
         type: string
     secrets:
-      aws-oidc-deploy-role-arn:
-        description: 'AWS OIDC role ARN for deployment authentication'
-        required: true
-      aws-oidc-policy-manager-role-arn:
-        description: 'AWS OIDC role ARN for policy management (read IAM policies)'
+      aws-oidc-role-arn:
+        description: 'AWS OIDC role ARN for deployment'
         required: true
 
 permissions:
@@ -110,7 +107,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.aws-oidc-deploy-role-arn }}
+          role-to-assume: ${{ secrets.aws-oidc-role-arn }}
           aws-region: ap-southeast-2
 
       - name: Validate IAM policy drift
@@ -145,43 +142,12 @@ jobs:
             fi
           fi
 
-          # Assume policy manager role to read IAM policies
-          echo "Assuming PolicyManager role to read deployed policies..."
-          POLICY_MANAGER_ROLE="${{ secrets.aws-oidc-policy-manager-role-arn }}"
-
-          if [ -z "$POLICY_MANAGER_ROLE" ]; then
-            echo "⚠️  WARNING: PolicyManager role ARN not configured"
-            echo "Skipping policy validation. To enable:"
-            echo "  - Add secret: AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__${ENV^^}"
-            echo "::warning::PolicyManager role not configured - skipping policy validation"
-            exit 0
-          fi
-
           # Get deployment role name from the deploy role ARN
-          DEPLOY_ROLE_ARN="${{ secrets.aws-oidc-deploy-role-arn }}"
+          DEPLOY_ROLE_ARN="${{ secrets.aws-oidc-role-arn }}"
           DEPLOY_ROLE_NAME=$(echo "$DEPLOY_ROLE_ARN" | sed 's|.*/||')
 
           echo "Deployment role: $DEPLOY_ROLE_NAME"
           echo ""
-
-          # Assume policy manager role
-          TEMP_CREDS=$(aws sts assume-role \
-            --role-arn "$POLICY_MANAGER_ROLE" \
-            --role-session-name "policy-validation-$APP_NAME-$ENV" \
-            --duration-seconds 900 \
-            --output json)
-
-          if [ $? -ne 0 ]; then
-            echo "⚠️  WARNING: Failed to assume PolicyManager role"
-            echo "Skipping policy validation."
-            echo "::warning::Failed to assume PolicyManager role - skipping policy validation"
-            exit 0
-          fi
-
-          # Export temporary credentials
-          export AWS_ACCESS_KEY_ID=$(echo "$TEMP_CREDS" | jq -r .Credentials.AccessKeyId)
-          export AWS_SECRET_ACCESS_KEY=$(echo "$TEMP_CREDS" | jq -r .Credentials.SecretAccessKey)
-          export AWS_SESSION_TOKEN=$(echo "$TEMP_CREDS" | jq -r .Credentials.SessionToken)
 
           # Get inline policy from deployment role
           echo "Retrieving deployed policy for role: $DEPLOY_ROLE_NAME"
@@ -252,47 +218,6 @@ jobs:
             echo "policy-drift-detected=false" >> $GITHUB_OUTPUT
           fi
 
-          exit 0
-
-      - name: Check PolicyManager role exists
-        id: policy-manager-check
-        run: |
-          ENV="${{ inputs.environment }}"
-          ROLE_NAME="monorepo-fem-policy-manager-$ENV"
-          STACK_NAME="monorepo-fem-devops-$ENV"
-
-          if ! aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null; then
-            echo "⚠️  WARNING: PolicyManager role does not exist for $ENV environment"
-            echo "The DevOps infrastructure must be bootstrapped before deploying applications."
-            echo ""
-            echo "To bootstrap the $ENV environment, a trusted person with AWS admin access must run:"
-            echo ""
-            echo "  aws cloudformation create-stack \\"
-            echo "    --stack-name $STACK_NAME \\"
-            echo "    --template-body file://devops/$ENV/monorepo-fem-github-actions-sam-deploy-$ENV.yml \\"
-            echo "    --capabilities CAPABILITY_NAMED_IAM \\"
-            echo "    --region ap-southeast-2 \\"
-            echo "    --parameters \\"
-            echo "      ParameterKey=GitHubOrganization,ParameterValue=sephnescence \\"
-            echo "      ParameterKey=GitHubRepository,ParameterValue=monorepo-fem \\"
-            echo "      ParameterKey=Environment,ParameterValue=$ENV \\"
-            echo "      ParameterKey=DeploymentBranch,ParameterValue=deploy-$ENV \\"
-            echo "      ParameterKey=AWSAccountId,ParameterValue=395380602678 \\"
-            echo "      ParameterKey=AWSRegion,ParameterValue=ap-southeast-2"
-            echo ""
-            echo "For detailed instructions, see: devops/README.md"
-            echo ""
-            echo "policy-manager-exists=false" >> $GITHUB_OUTPUT
-            exit 0
-          else
-            echo "✓ PolicyManager role exists: $ROLE_NAME"
-            echo "policy-manager-exists=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Exit if PolicyManager missing
-        if: steps.policy-manager-check.outputs.policy-manager-exists == 'false'
-        run: |
-          echo "::warning::Deployment skipped - PolicyManager role not found. See bootstrap instructions above."
           exit 0
 
       - name: Validate SAM template

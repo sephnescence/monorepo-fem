@@ -92,13 +92,8 @@ jobs:
       artefact-name: heartbeat-build-artefacts
       policy-file: .github/policies/heartbeat-publisher-deploy-policy.json
     secrets:
-      aws-oidc-deploy-role-arn: ${{
-        (needs.build-and-test.outputs.environment == 'dev' && secrets.AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV) ||
-        (needs.build-and-test.outputs.environment == 'exp' && secrets.AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP) ||
-        (needs.build-and-test.outputs.environment == 'prod' && secrets.AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD)
-      }}
-      aws-oidc-policy-manager-role-arn: ${{
-        (needs.build-and-test.outputs.environment == 'dev' && secrets.AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__DEV) ||
-        (needs.build-and-test.outputs.environment == 'exp' && secrets.AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__EXP) ||
-        (needs.build-and-test.outputs.environment == 'prod' && secrets.AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__PROD)
+      aws-oidc-role-arn: ${{
+        (needs.build-and-test.outputs.environment == 'dev' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV) ||
+        (needs.build-and-test.outputs.environment == 'exp' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP) ||
+        (needs.build-and-test.outputs.environment == 'prod' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD)
       }}
