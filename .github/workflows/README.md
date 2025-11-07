@@ -11,6 +11,10 @@ This directory contains GitHub Actions workflows for CI/CD automation.
 - **deploy-scryscraper.yml** - Builds, tests, and deploys the Scryscraper Lambda function
 - **reusable-deploy-lambda.yml** - Reusable workflow for Lambda deployments (called by the above)
 
+### Monitoring Workflows
+
+- **daily-drift-detection.yml** - Runs daily to detect policy drift across all apps and environments
+
 ### Environment Strategy
 
 Deployments are triggered by:
@@ -28,7 +32,12 @@ Each workflow:
 
 ### Overview
 
-Before each deployment, the workflow validates that the deployed IAM policy matches the policy file stored in the repository. This helps maintain policy-as-code discipline and detects policy drift.
+Policy validation ensures that deployed IAM policies match the policy files stored in the repository. This helps maintain policy-as-code discipline and detects policy drift.
+
+Policy validation runs in two contexts:
+
+1. **During deployment** - Before each deployment, the reusable workflow validates policy drift
+2. **Daily monitoring** - A scheduled workflow runs daily to check all apps and environments
 
 ### How It Works
 
@@ -45,8 +54,8 @@ Before each deployment, the workflow validates that the deployed IAM policy matc
    - Reports any differences
 
 3. **When validation runs**:
-   - Before every deployment
-   - In the "Validate IAM policy drift" step of the reusable workflow
+   - **During deployment**: In the "Validate IAM policy drift" step of the reusable workflow
+   - **Daily**: Via the `daily-drift-detection.yml` workflow (scheduled for 2:00 AM UTC / 12:00 PM AEST)
 
 ### Validation Behaviour
 
@@ -200,6 +209,43 @@ Components are separated by double underscores (`__`) for clarity.
 12. Health check (invoke Lambda)
 13. Monitor CloudWatch alarms
 14. Clean up on failure (if needed)
+
+## Daily Drift Detection
+
+### Overview
+
+The `daily-drift-detection.yml` workflow runs automatically every day at 2:00 AM UTC (12:00 PM AEST) to check for policy drift across all apps and environments.
+
+### How It Works
+
+The workflow runs separate jobs for each app and environment combination:
+
+- **Heartbeat Publisher**: dev, exp, prod
+- **Pulse Publisher**: dev, exp, prod
+- **Scryscraper**: dev, exp, prod
+
+Each job:
+
+1. Authenticates using the app-specific and environment-specific OIDC role
+2. Retrieves the deployed policy from the IAM role
+3. Compares it with the repository policy file
+4. Reports any differences as warnings (dev/exp) or errors (prod)
+
+### Behaviour
+
+- **Dev/Exp environments**: Drift generates warnings but jobs continue
+- **Prod environments**: Drift generates errors and jobs fail
+- Jobs are independent - failure in one doesn't affect others
+- Can be triggered manually via workflow_dispatch for on-demand checks
+
+### Why Daily Checks?
+
+Daily drift detection provides early warning of policy changes that may have been made manually outside of the deployment process, allowing teams to:
+
+- Catch manual policy changes before they cause issues
+- Maintain policy-as-code discipline
+- Audit policy changes over time
+- Identify security drift in production environments
 
 ## Troubleshooting
 
