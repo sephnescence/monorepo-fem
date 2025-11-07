@@ -227,8 +227,8 @@ DataProcessorDeployRole:
                 - 's3:PutBucketVersioning'
                 - 's3:PutObject'
               Resource:
-                - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*'
-                - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*'
+                - 'arn:aws:s3:::aws-sam-cli--monorepo-fem--*'
+                - 'arn:aws:s3:::aws-sam-cli--monorepo-fem--*/*'
 
             - Sid: LambdaAccess
               Effect: Allow

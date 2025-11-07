@@ -228,7 +228,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           ENV="${{ inputs.environment }}"
-          STACK_NAME="${{ inputs.app-name }}-$ENV"
+          STACK_NAME="monorepo-fem--${{ inputs.app-name }}--$ENV"
           if ! aws cloudformation describe-stacks --stack-name $STACK_NAME 2>/dev/null; then
             echo "⚠️  WARNING: Stack does not exist. This is a CREATE operation."
             echo "If deployment fails, stack will enter ROLLBACK_COMPLETE state."
@@ -245,7 +245,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           ENV="${{ inputs.environment }}"
-          STACK_NAME="${{ inputs.app-name }}-$ENV"
+          STACK_NAME="monorepo-fem--${{ inputs.app-name }}--$ENV"
           sam deploy \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --config-env $ENV \
@@ -263,7 +263,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           ENV="${{ inputs.environment }}"
-          STACK_NAME="${{ inputs.app-name }}-$ENV"
+          STACK_NAME="monorepo-fem--${{ inputs.app-name }}--$ENV"
           FUNCTION_NAME=$(aws cloudformation describe-stacks \
             --stack-name $STACK_NAME \
             --query "Stacks[0].Outputs[?OutputKey=='${{ inputs.output-key }}'].OutputValue" \
@@ -323,7 +323,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
         run: |
           ENV="${{ inputs.environment }}"
-          STACK_NAME="${{ inputs.app-name }}-$ENV"
+          STACK_NAME="monorepo-fem--${{ inputs.app-name }}--$ENV"
 
           # Get current stack status
           STACK_STATUS=$(aws cloudformation describe-stacks \

@@ -183,7 +183,7 @@ Ensure your stack name starts with `monorepo-fem-heartbeat-publisher-dev`.
 **Symptoms:**
 
 ```
-Error: Access Denied while accessing S3 bucket: aws-sam-cli-managed-default-samclisourcebucket-abc123
+Error: Access Denied while accessing S3 bucket: aws-sam-cli--monorepo-fem--dev-abc123
 ```
 
 **Solutions:**
@@ -203,14 +203,14 @@ aws iam get-role-policy \
 The policy should include wildcards for SAM-managed buckets:
 
 ```
-arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*
+arn:aws:s3:::aws-sam-cli--monorepo-fem--*
 ```
 
 **3. Verify bucket exists:**
 
 ```sh
 aws s3api list-buckets \
-  --query "Buckets[?starts_with(Name, 'aws-sam-cli-managed-default')].Name"
+  --query "Buckets[?starts_with(Name, 'aws-sam-cli--monorepo-fem')].Name"
 ```
 
 ## CloudFormation Errors
@@ -440,7 +440,7 @@ SAM buckets must be in the same region as the deployment:
 
 ```sh
 aws s3api get-bucket-location \
-  --bucket aws-sam-cli-managed-default-samclisourcebucket-abc123
+  --bucket aws-sam-cli--monorepo-fem--dev-abc123
 ```
 
 ## GitHub Actions Workflow Issues

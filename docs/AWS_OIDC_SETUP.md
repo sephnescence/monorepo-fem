@@ -152,7 +152,7 @@ aws iam create-open-id-connect-provider \
 
 Create a file named `.github/github-actions-deploy-policy.json`: (Refer to the existing one for the most up to date version. Failing that, check AWS directly)
 
-**Note on S3 bucket resources:** The S3 bucket ARNs use wildcards (`aws-sam-cli-managed-default-samclisourcebucket-*`) because SAM CLI automatically creates managed buckets with a random suffix when `resolve_s3 = true` is set in `samconfig.toml`. Both Lambda packages (`heartbeat-publisher` and `pulse-publisher`) use this setting, so SAM will create and manage the deployment bucket automatically.
+**Note on S3 bucket resources:** The S3 bucket ARNs use wildcards (`aws-sam-cli--monorepo-fem--*`) because SAM CLI automatically creates managed buckets with a random suffix when `resolve_s3 = true` is set in `samconfig.toml`. Both Lambda packages (`heartbeat-publisher` and `pulse-publisher`) use this setting, so SAM will create and manage the deployment bucket automatically.
 
 ```json
 {
@@ -198,8 +198,8 @@ Create a file named `.github/github-actions-deploy-policy.json`: (Refer to the e
         "s3:PutBucketPolicy"
       ],
       "Resource": [
-        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*",
-        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*"
+        "arn:aws:s3:::aws-sam-cli--monorepo-fem--*",
+        "arn:aws:s3:::aws-sam-cli--monorepo-fem--*/*"
       ]
     },
     {

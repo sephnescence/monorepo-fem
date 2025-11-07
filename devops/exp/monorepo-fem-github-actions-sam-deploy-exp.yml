@@ -121,7 +121,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default-*'
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default/*'
-                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem-heartbeat-publisher-${Environment}*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem--heartbeat-publisher--${Environment}*/*'
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:aws:transform/Serverless-2016-10-31'
 
               - Sid: S3DeploymentBucketAccess
@@ -138,8 +138,8 @@ Resources:
                   - 's3:PutBucketVersioning'
                   - 's3:PutObject'
                 Resource:
-                  - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*'
-                  - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}/*'
 
               - Sid: LambdaAccess
                 Effect: Allow
@@ -291,7 +291,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default-*'
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default/*'
-                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem-pulse-publisher-${Environment}*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem--pulse-publisher--${Environment}*/*'
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:aws:transform/Serverless-2016-10-31'
 
               - Sid: S3DeploymentBucketAccess
@@ -308,8 +308,8 @@ Resources:
                   - 's3:PutBucketVersioning'
                   - 's3:PutObject'
                 Resource:
-                  - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*'
-                  - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}/*'
 
               - Sid: LambdaAccess
                 Effect: Allow
@@ -461,7 +461,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default-*'
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default/*'
-                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem-scryscraper-${Environment}*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem--scryscraper--${Environment}*/*'
                   - !Sub 'arn:aws:cloudformation:${AWSRegion}:aws:transform/Serverless-2016-10-31'
 
               - Sid: S3DeploymentBucketAccess
@@ -478,8 +478,8 @@ Resources:
                   - 's3:PutBucketVersioning'
                   - 's3:PutObject'
                 Resource:
-                  - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*'
-                  - 'arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}/*'
 
               - Sid: LambdaAccess
                 Effect: Allow

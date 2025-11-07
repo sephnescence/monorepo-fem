@@ -100,7 +100,7 @@ sam deploy --guided
 
 You'll be prompted for:
 
-- **Stack Name**: e.g., `heartbeat-publisher-dev`
+- **Stack Name**: e.g., `monorepo-fem--heartbeat-publisher--dev`
 - **AWS Region**: e.g., `ap-southeast-2`
 - **Environment**: `dev`, `staging`, or `prod`
 - **ScheduleRate**: e.g., `rate(1 minute)`

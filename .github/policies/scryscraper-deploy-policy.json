@@ -24,7 +24,7 @@
       "Resource": [
         "arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack/aws-sam-cli-managed-default-*",
         "arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack/aws-sam-cli-managed-default/*",
-        "arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack/monorepo-fem-scryscraper-${ENVIRONMENT}*/*",
+        "arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack/monorepo-fem--scryscraper--${ENVIRONMENT}*/*",
         "arn:aws:cloudformation:${AWS_REGION}:aws:transform/Serverless-2016-10-31"
       ]
     },
@@ -44,8 +44,8 @@
         "s3:PutObject"
       ],
       "Resource": [
-        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*",
-        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*"
+        "arn:aws:s3:::aws-sam-cli--monorepo-fem--*",
+        "arn:aws:s3:::aws-sam-cli--monorepo-fem--*/*"
       ]
     },
     {
@@ -158,7 +158,7 @@
         "s3:PutLifecycleConfiguration"
       ],
       "Resource": [
-        "arn:aws:s3:::monorepo-fem-scryscraper-cache-*"
+        "arn:aws:s3:::monorepo-fem--scryscraper--cache--*"
       ]
     },
     {
@@ -176,7 +176,7 @@
         "dynamodb:UpdateTimeToLive"
       ],
       "Resource": [
-        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/monorepo-fem-scryscraper-*"
+        "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/monorepo-fem--scryscraper--*"
       ]
     }
   ]

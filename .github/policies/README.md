@@ -49,18 +49,18 @@ Apps can create log streams in shared metrics log groups with app-prefixed names
 ### S3 Buckets
 
 #### Shared SAM Deployment Buckets (in all policies)
-- `aws-sam-cli-managed-default-samclisourcebucket-*`
+- `aws-sam-cli--monorepo-fem--*`
 
 #### App-Specific Buckets
-- ScrysScraper: `monorepo-fem-scryscraper-cache-${Environment}`
+- ScrysScraper: `monorepo-fem--scryscraper--cache--${Environment}`
 
 ### DynamoDB Tables
-- ScrysScraper: `monorepo-fem-scryscraper-${Environment}`
+- ScrysScraper: `monorepo-fem--scryscraper--${Environment}`
 
 ### CloudFormation Stacks
-- Heartbeat Publisher: `monorepo-fem-heartbeat-publisher-${Environment}`
-- Pulse Publisher: `monorepo-fem-pulse-publisher-${Environment}`
-- ScrysScraper: `monorepo-fem-scryscraper-${Environment}`
+- Heartbeat Publisher: `monorepo-fem--heartbeat-publisher--${Environment}`
+- Pulse Publisher: `monorepo-fem--pulse-publisher--${Environment}`
+- ScrysScraper: `monorepo-fem--scryscraper--${Environment}`
 
 ## Placeholder Substitution
 
@@ -93,7 +93,7 @@ All policies include identical permissions for shared resources:
 ### S3 Deployment Buckets
 - Create, read, write, delete objects
 - Bucket policy management
-- Scoped to: `aws-sam-cli-managed-default-samclisourcebucket-*`
+- Scoped to: `aws-sam-cli--monorepo-fem--*`
 
 ## App-Specific Permissions
 
