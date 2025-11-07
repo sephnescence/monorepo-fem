@@ -8,40 +8,47 @@ Each application has its own dedicated IAM policy that grants only the permissio
 
 - `heartbeat-publisher-deploy-policy.json` - Heartbeat Publisher deployment permissions
 - `pulse-publisher-deploy-policy.json` - Pulse Publisher deployment permissions
-- `scryscraper-deploy-policy.json` - ScrysScraper deployment permissions
+- `scryscraper-deploy-policy.json` - Scryscraper deployment permissions
 
 ## Resource Naming Conventions
 
 All resource names follow consistent patterns that align with the CloudFormation templates:
 
 ### Lambda Functions
+
 - Heartbeat Publisher: `heartbeat-publisher-${Environment}`
 - Pulse Publisher: `pulse-publisher-${Environment}`
-- ScrysScraper: `scryscraper-${Environment}`
+- Scryscraper: `scryscraper-${Environment}`
 
 ### IAM Roles
+
 - Heartbeat Publisher: `heartbeat-publisher-*` (SAM-generated)
 - Pulse Publisher: `pulse-publisher-*` (SAM-generated)
-- ScrysScraper: `scryscraper-lambda-role-${Environment}`
+- Scryscraper: `scryscraper-lambda-role-${Environment}`
 
 ### EventBridge Rules
+
 - Heartbeat Publisher: `heartbeat-publisher-schedule-${Environment}`
 - Pulse Publisher: `pulse-publisher-schedule-${Environment}`
-- ScrysScraper: `scryscraper-schedule-${Environment}`
+- Scryscraper: `scryscraper-schedule-${Environment}`
 
 ### CloudWatch Log Groups
 
 #### Lambda Execution Logs
+
 - Heartbeat Publisher: `/aws/lambda/heartbeat-publisher-${Environment}`
 - Pulse Publisher: `/aws/lambda/pulse-publisher-${Environment}`
-- ScrysScraper: `/aws/lambda/scryscraper-${Environment}`
+- Scryscraper: `/aws/lambda/scryscraper-${Environment}`
 
 #### Application-Specific Logs
+
 - Heartbeat Publisher: `/monorepo-fem/heartbeats-${Environment}`
 - Pulse Publisher: `/monorepo-fem/pulse-${Environment}`
 
 #### Shared Metrics Logs
+
 Apps can create log streams in shared metrics log groups with app-prefixed names:
+
 - `/aws/metrics/monorepo-fem-${Environment}/heartbeat-publisher*`
 - `/aws/metrics/monorepo-fem-${Environment}/pulse-publisher*`
 - `/aws/metrics/monorepo-fem-${Environment}/scryscraper*`
@@ -49,18 +56,22 @@ Apps can create log streams in shared metrics log groups with app-prefixed names
 ### S3 Buckets
 
 #### Shared SAM Deployment Buckets (in all policies)
+
 - `aws-sam-cli--monorepo-fem--*`
 
 #### App-Specific Buckets
-- ScrysScraper: `monorepo-fem--scryscraper--cache--${Environment}`
+
+- Scryscraper: `monorepo-fem--scryscraper--cache--${Environment}`
 
 ### DynamoDB Tables
-- ScrysScraper: `monorepo-fem--scryscraper--${Environment}`
+
+- Scryscraper: `monorepo-fem--scryscraper--${Environment}`
 
 ### CloudFormation Stacks
+
 - Heartbeat Publisher: `monorepo-fem--heartbeat-publisher--${Environment}`
 - Pulse Publisher: `monorepo-fem--pulse-publisher--${Environment}`
-- ScrysScraper: `monorepo-fem--scryscraper--${Environment}`
+- Scryscraper: `monorepo-fem--scryscraper--${Environment}`
 
 ## Placeholder Substitution
 
@@ -86,11 +97,13 @@ sed -e "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" \
 All policies include identical permissions for shared resources:
 
 ### CloudFormation
+
 - Full stack lifecycle management (Create, Update, Delete, Describe, etc.)
 - Scoped to: `aws-sam-cli-managed-default-*` stacks and app-specific stacks
 - Includes SAM transform: `arn:aws:cloudformation:${AWS_REGION}:aws:transform/Serverless-2016-10-31`
 
 ### S3 Deployment Buckets
+
 - Create, read, write, delete objects
 - Bucket policy management
 - Scoped to: `aws-sam-cli--monorepo-fem--*`
@@ -98,27 +111,29 @@ All policies include identical permissions for shared resources:
 ## App-Specific Permissions
 
 ### All Apps Include
+
 - **Lambda**: Create, update, delete, configure functions
 - **IAM**: Manage execution roles (scoped to app name pattern)
 - **EventBridge**: Manage scheduled rules (scoped to app name pattern)
 - **CloudWatch**: Manage alarms, dashboards, log groups, metric filters
 
-### ScrysScraper Additional Permissions
+### Scryscraper Additional Permissions
+
 - **S3**: Manage cache bucket (`monorepo-fem-scryscraper-cache-*`)
 - **DynamoDB**: Manage tables (`monorepo-fem-scryscraper-*`)
 
 ## Policy Comparison
 
-| Permission Type | Heartbeat Publisher | Pulse Publisher | ScrysScraper |
-|----------------|---------------------|-----------------|--------------|
-| Lambda | ✓ | ✓ | ✓ |
-| IAM Roles | ✓ | ✓ | ✓ |
-| EventBridge | ✓ | ✓ | ✓ |
-| CloudWatch | ✓ | ✓ | ✓ |
-| CloudFormation | ✓ | ✓ | ✓ |
-| S3 (SAM) | ✓ | ✓ | ✓ |
-| S3 (app-specific) | - | - | ✓ |
-| DynamoDB | - | - | ✓ |
+| Permission Type   | Heartbeat Publisher | Pulse Publisher | Scryscraper |
+| ----------------- | ------------------- | --------------- | ----------- |
+| Lambda            | ✓                   | ✓               | ✓           |
+| IAM Roles         | ✓                   | ✓               | ✓           |
+| EventBridge       | ✓                   | ✓               | ✓           |
+| CloudWatch        | ✓                   | ✓               | ✓           |
+| CloudFormation    | ✓                   | ✓               | ✓           |
+| S3 (SAM)          | ✓                   | ✓               | ✓           |
+| S3 (app-specific) | -                   | -               | ✓           |
+| DynamoDB          | -                   | -               | ✓           |
 
 ## Adding a New App Policy
 
@@ -171,17 +186,20 @@ When adding a new application to the monorepo:
 ### Validation Steps
 
 1. **JSON Syntax**: Validate JSON is well-formed
+
    ```bash
    jq empty <app-name>-deploy-policy.json
    ```
 
 2. **Resource Name Patterns**: Check against CloudFormation templates
+
    ```bash
    # Compare policy resources with template resource names
    grep -E "(FunctionName|LogGroupName|RoleName|BucketName|TableName)" apps/<app-name>/template.yaml
    ```
 
 3. **Placeholder Consistency**: Verify all placeholders are present
+
    ```bash
    grep -E '\$\{[A-Z_]+\}' <app-name>-deploy-policy.json
    ```

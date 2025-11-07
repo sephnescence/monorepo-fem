@@ -411,7 +411,7 @@ Resources:
         - Key: ManagedBy
           Value: CloudFormation
 
-  # Deployment role for Scry Scraper application
+  # Deployment role for Scryscraper application
   # Scoped to only deploy and manage scryscraper resources
   ScryScraperDeployRole:
     Type: AWS::IAM::Role
@@ -604,7 +604,7 @@ Resources:
 
       Tags:
         - Key: Name
-          Value: !Sub 'GitHubActionsDeployRole-ScrysScraper-${Environment}'
+          Value: !Sub 'GitHubActionsDeployRole-Scryscraper-${Environment}'
         - Key: Environment
           Value: !Ref Environment
         - Key: Application
@@ -644,7 +644,7 @@ Outputs:
       Name: !Sub 'monorepo-fem-pulse-publisher-deploy-role-arn-${Environment}'
 
   ScryScraperDeployRoleArn:
-    Description: ARN of the Scry Scraper deployment role
+    Description: ARN of the Scryscraper deployment role
     Value: !GetAtt ScryScraperDeployRole.Arn
     Export:
       Name: !Sub 'monorepo-fem-scryscraper-deploy-role-arn-${Environment}'
