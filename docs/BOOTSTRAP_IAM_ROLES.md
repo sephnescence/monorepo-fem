@@ -33,6 +33,12 @@ aws sts get-caller-identity
 
 # Verify your region (should be ap-southeast-2)
 aws configure get region
+
+# Set AWS_ACCOUNT_ID environment variable for use in deployment commands
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Verify it's set correctly
+echo $AWS_ACCOUNT_ID
 ```
 
 Expected output should show your AWS account ID and the ap-southeast-2 region.
@@ -55,7 +61,7 @@ aws cloudformation deploy \
     GitHubRepository=monorepo-fem \
     Environment=dev \
     DeploymentBranch=deploy-dev \
-    AWSAccountId=395380602678 \
+    AWSAccountId=${AWS_ACCOUNT_ID} \
     AWSRegion=ap-southeast-2
 ```
 
@@ -108,7 +114,7 @@ aws cloudformation deploy \
     GitHubRepository=monorepo-fem \
     Environment=exp \
     DeploymentBranch=deploy-exp \
-    AWSAccountId=395380602678 \
+    AWSAccountId=${AWS_ACCOUNT_ID} \
     AWSRegion=ap-southeast-2
 ```
 
@@ -152,7 +158,7 @@ aws cloudformation deploy \
     GitHubRepository=monorepo-fem \
     Environment=prod \
     DeploymentBranch=deploy-prod \
-    AWSAccountId=395380602678 \
+    AWSAccountId=${AWS_ACCOUNT_ID} \
     AWSRegion=ap-southeast-2
 ```
 
@@ -212,9 +218,9 @@ aws cloudformation describe-stacks \
 Expected output format:
 
 ```
-arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev
-arn:aws:iam::395380602678:role/GitHubActionsDeployRole-PulsePublisher-dev
-arn:aws:iam::395380602678:role/GitHubActionsDeployRole-ScrysScraper-dev
+arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev
+arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-PulsePublisher-dev
+arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-ScrysScraper-dev
 ```
 
 ### Step 5: Add Role ARNs to GitHub Secrets
@@ -230,19 +236,19 @@ Add the role ARNs as GitHub repository secrets. You can do this via the GitHub U
 gh auth login
 
 # Add dev environment secrets
-gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_DEV --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev"
-gh secret set AWS_DEPLOY_ROLE_ARN_PULSE_DEV --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-PulsePublisher-dev"
-gh secret set AWS_DEPLOY_ROLE_ARN_SCRYSCRAPER_DEV --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-ScrysScraper-dev"
+gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_DEV --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev"
+gh secret set AWS_DEPLOY_ROLE_ARN_PULSE_DEV --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-PulsePublisher-dev"
+gh secret set AWS_DEPLOY_ROLE_ARN_SCRYSCRAPER_DEV --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-ScrysScraper-dev"
 
 # Add exp environment secrets
-gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_EXP --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-exp"
-gh secret set AWS_DEPLOY_ROLE_ARN_PULSE_EXP --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-PulsePublisher-exp"
-gh secret set AWS_DEPLOY_ROLE_ARN_SCRYSCRAPER_EXP --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-ScrysScraper-exp"
+gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_EXP --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-exp"
+gh secret set AWS_DEPLOY_ROLE_ARN_PULSE_EXP --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-PulsePublisher-exp"
+gh secret set AWS_DEPLOY_ROLE_ARN_SCRYSCRAPER_EXP --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-ScrysScraper-exp"
 
 # Add prod environment secrets
-gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_PROD --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-prod"
-gh secret set AWS_DEPLOY_ROLE_ARN_PULSE_PROD --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-PulsePublisher-prod"
-gh secret set AWS_DEPLOY_ROLE_ARN_SCRYSCRAPER_PROD --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-ScrysScraper-prod"
+gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_PROD --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-prod"
+gh secret set AWS_DEPLOY_ROLE_ARN_PULSE_PROD --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-PulsePublisher-prod"
+gh secret set AWS_DEPLOY_ROLE_ARN_SCRYSCRAPER_PROD --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-ScrysScraper-prod"
 ```
 
 **Option B: GitHub Web UI:**
@@ -297,7 +303,7 @@ aws iam get-role --role-name GitHubActionsDeployRole-ScrysScraper-prod --region 
 Each role should have a trust policy that:
 
 - Allows `sts:AssumeRoleWithWebIdentity`
-- Principal is the OIDC provider: `arn:aws:iam::395380602678:oidc-provider/token.actions.githubusercontent.com`
+- Principal is the OIDC provider: `arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com`
 - Condition restricts to the correct deployment branch (deploy-dev, deploy-exp, or deploy-prod)
 - Condition restricts to your repository: `repo:sephnescence/monorepo-fem:ref:refs/heads/<branch>`
 
@@ -320,7 +326,7 @@ Monitor the workflow execution:
 
 **Check workflow logs for:**
 
-- `Assuming role: arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev`
+- `Assuming role: arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev`
 - `Successfully assumed role`
 - `Deployment completed successfully`
 
@@ -393,7 +399,7 @@ If you need to delete the existing provider (DANGER: this will break other workf
 
 ```sh
 aws iam delete-open-id-connect-provider \
-  --open-id-connect-provider-arn arn:aws:iam::395380602678:oidc-provider/token.actions.githubusercontent.com
+  --open-id-connect-provider-arn arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com
 ```
 
 ### Role ARN Not Found in CloudFormation Outputs

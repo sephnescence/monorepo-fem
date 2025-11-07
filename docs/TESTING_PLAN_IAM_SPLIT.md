@@ -233,7 +233,7 @@ aws logs describe-log-groups \
 ```sh
 # Assume heartbeat-publisher role (replace with actual role ARN)
 aws sts assume-role \
-  --role-arn arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev \
+  --role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev \
   --role-session-name test-session \
   --region ap-southeast-2
 
@@ -389,7 +389,7 @@ aws iam delete-role-policy \
 ```sh
 # Verify Lambda function has correct environment tag
 aws lambda list-tags \
-  --resource arn:aws:lambda:ap-southeast-2:395380602678:function:heartbeat-publisher-dev-function \
+  --resource arn:aws:lambda:ap-southeast-2:${AWS_ACCOUNT_ID}:function:heartbeat-publisher-dev-function \
   --region ap-southeast-2
 
 # Check CloudFormation stack tags
@@ -541,7 +541,7 @@ aws accessanalyzer create-analyzer \
 
 # List findings for specific role
 aws accessanalyzer list-findings \
-  --analyzer-arn arn:aws:access-analyzer:ap-southeast-2:395380602678:analyzer/monorepo-fem-analyser \
+  --analyzer-arn arn:aws:access-analyzer:ap-southeast-2:${AWS_ACCOUNT_ID}:analyzer/monorepo-fem-analyser \
   --region ap-southeast-2 \
   --filter '{"principal.AWS":{"contains":["GitHubActionsDeployRole-HeartbeatPublisher-dev"]}}' \
   --query 'findings[].{Resource:resource,FindingType:findingType,Status:status}' \

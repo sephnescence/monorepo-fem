@@ -33,7 +33,7 @@ Parameters:
 
   AWSAccountId:
     Type: String
-    Default: '395380602678'
+    Default: '${AWS_ACCOUNT_ID}'
     Description: AWS Account ID for ARN construction
 
   AWSRegion:

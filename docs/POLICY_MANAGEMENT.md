@@ -340,7 +340,7 @@ aws cloudformation describe-stacks \
 
 ```sh
 gh secret set AWS_DEPLOY_ROLE_ARN_DATAPROCESSOR_DEV \
-  --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-DataProcessor-dev"
+  --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-DataProcessor-dev"
 ```
 
 ### Step 6: Create GitHub Workflow
@@ -438,9 +438,9 @@ Test policy permissions before deployment:
 ```sh
 # Test if role can create Lambda function
 aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev \
+  --policy-source-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev \
   --action-names lambda:CreateFunction \
-  --resource-arns arn:aws:lambda:ap-southeast-2:395380602678:function:heartbeat-publisher-dev-test
+  --resource-arns arn:aws:lambda:ap-southeast-2:${AWS_ACCOUNT_ID}:function:heartbeat-publisher-dev-test
 ```
 
 ### Run IAM Access Analyser
@@ -456,7 +456,7 @@ aws accessanalyzer create-analyzer \
 
 # Check for findings
 aws accessanalyzer list-findings \
-  --analyzer-arn arn:aws:access-analyzer:ap-southeast-2:395380602678:analyzer/monorepo-fem-analyser \
+  --analyzer-arn arn:aws:access-analyzer:ap-southeast-2:${AWS_ACCOUNT_ID}:analyzer/monorepo-fem-analyser \
   --region ap-southeast-2
 ```
 

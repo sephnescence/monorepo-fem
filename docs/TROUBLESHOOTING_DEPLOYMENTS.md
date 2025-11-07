@@ -20,7 +20,7 @@ This guide provides solutions to common deployment issues in the per-app, per-en
 **Symptoms:**
 
 ```
-Error: AssumeRoleWithWebIdentity failed: User is not authorized to perform: sts:AssumeRoleWithWebIdentity on resource: arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev
+Error: AssumeRoleWithWebIdentity failed: User is not authorized to perform: sts:AssumeRoleWithWebIdentity on resource: arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev
 ```
 
 **Possible Causes:**
@@ -69,7 +69,7 @@ Verify the trust policy includes:
 gh secret list
 
 # The secret should be named: AWS_DEPLOY_ROLE_ARN_HEARTBEAT_DEV
-# And contain: arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev
+# And contain: arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev
 ```
 
 **4. Check OIDC provider:**
@@ -94,7 +94,7 @@ Check that the OIDC provider has `sts.amazonaws.com` in its client ID list:
 
 ```sh
 aws iam get-open-id-connect-provider \
-  --open-id-connect-provider-arn arn:aws:iam::395380602678:oidc-provider/token.actions.githubusercontent.com \
+  --open-id-connect-provider-arn arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com \
   --region ap-southeast-2 \
   --query 'ClientIDList'
 ```
@@ -108,7 +108,7 @@ If missing, update the CloudFormation stack to add it.
 **Symptoms:**
 
 ```
-Error: User is not authorized to perform: lambda:CreateFunction on resource: arn:aws:lambda:ap-southeast-2:395380602678:function:heartbeat-publisher-dev-function
+Error: User is not authorized to perform: lambda:CreateFunction on resource: arn:aws:lambda:ap-southeast-2:${AWS_ACCOUNT_ID}:function:heartbeat-publisher-dev-function
 ```
 
 **Solutions:**
@@ -153,7 +153,7 @@ aws cloudtrail lookup-events \
 **Symptoms:**
 
 ```
-Error: User is not authorized to perform: cloudformation:CreateStack on resource: arn:aws:cloudformation:ap-southeast-2:395380602678:stack/monorepo-fem-heartbeat-publisher-dev
+Error: User is not authorized to perform: cloudformation:CreateStack on resource: arn:aws:cloudformation:ap-southeast-2:${AWS_ACCOUNT_ID}:stack/monorepo-fem-heartbeat-publisher-dev
 ```
 
 **Solutions:**
@@ -173,7 +173,7 @@ aws iam get-role-policy \
 The policy scopes to:
 
 ```
-arn:aws:cloudformation:ap-southeast-2:395380602678:stack/monorepo-fem-heartbeat-publisher-dev*/*
+arn:aws:cloudformation:ap-southeast-2:${AWS_ACCOUNT_ID}:stack/monorepo-fem-heartbeat-publisher-dev*/*
 ```
 
 Ensure your stack name starts with `monorepo-fem-heartbeat-publisher-dev`.
@@ -471,7 +471,7 @@ Secret names must match exactly (case-sensitive):
 **3. Add the secret:**
 
 ```sh
-gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_DEV --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole-HeartbeatPublisher-dev"
+gh secret set AWS_DEPLOY_ROLE_ARN_HEARTBEAT_DEV --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole-HeartbeatPublisher-dev"
 ```
 
 ### Error: "Workflow doesn't trigger on push"
@@ -587,7 +587,7 @@ echo | openssl s_client -servername token.actions.githubusercontent.com \
 
 ```sh
 aws iam get-open-id-connect-provider \
-  --open-id-connect-provider-arn arn:aws:iam::395380602678:oidc-provider/token.actions.githubusercontent.com \
+  --open-id-connect-provider-arn arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com \
   --region ap-southeast-2
 ```
 

@@ -130,6 +130,15 @@ Applications cannot:
 1. **OIDC Provider** - Must be set up in AWS account (one-time setup, already done if GitHub Actions are working)
 2. **AWS CLI** - Installed and configured with appropriate credentials
 3. **Authorisation** - Only trusted persons with AWS admin access should perform bootstrap
+4. **AWS Account ID** - Set the AWS_ACCOUNT_ID environment variable before running deployment commands:
+
+```bash
+# Get your AWS account ID
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Verify it's set correctly
+echo $AWS_ACCOUNT_ID
+```
 
 ### Initial Deployment
 
@@ -148,7 +157,7 @@ aws cloudformation create-stack \
     ParameterKey=GitHubRepository,ParameterValue=monorepo-fem \
     ParameterKey=Environment,ParameterValue=dev \
     ParameterKey=DeploymentBranch,ParameterValue=deploy-dev \
-    ParameterKey=AWSAccountId,ParameterValue=395380602678 \
+    ParameterKey=AWSAccountId,ParameterValue=${AWS_ACCOUNT_ID} \
     ParameterKey=AWSRegion,ParameterValue=ap-southeast-2
 ```
 
@@ -165,7 +174,7 @@ aws cloudformation create-stack \
     ParameterKey=GitHubRepository,ParameterValue=monorepo-fem \
     ParameterKey=Environment,ParameterValue=exp \
     ParameterKey=DeploymentBranch,ParameterValue=deploy-exp \
-    ParameterKey=AWSAccountId,ParameterValue=395380602678 \
+    ParameterKey=AWSAccountId,ParameterValue=${AWS_ACCOUNT_ID} \
     ParameterKey=AWSRegion,ParameterValue=ap-southeast-2
 ```
 
@@ -182,7 +191,7 @@ aws cloudformation create-stack \
     ParameterKey=GitHubRepository,ParameterValue=monorepo-fem \
     ParameterKey=Environment,ParameterValue=prod \
     ParameterKey=DeploymentBranch,ParameterValue=deploy-prod \
-    ParameterKey=AWSAccountId,ParameterValue=395380602678 \
+    ParameterKey=AWSAccountId,ParameterValue=${AWS_ACCOUNT_ID} \
     ParameterKey=AWSRegion,ParameterValue=ap-southeast-2
 ```
 
@@ -395,7 +404,7 @@ aws cloudformation update-stack \
     ParameterKey=GitHubRepository,ParameterValue=monorepo-fem \
     ParameterKey=Environment,ParameterValue=<env> \
     ParameterKey=DeploymentBranch,ParameterValue=deploy-<env> \
-    ParameterKey=AWSAccountId,ParameterValue=395380602678 \
+    ParameterKey=AWSAccountId,ParameterValue=${AWS_ACCOUNT_ID} \
     ParameterKey=AWSRegion,ParameterValue=ap-southeast-2
 ```
 

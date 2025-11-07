@@ -104,7 +104,7 @@ cat > migration-state.json <<EOF
   "migration_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "migration_strategy": "all-at-once",
   "phases_completed": [],
-  "old_role_arn": "arn:aws:iam::395380602678:role/GitHubActionsDeployRole",
+  "old_role_arn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole",
   "new_infrastructure_stacks": {
     "dev": null,
     "exp": null,
@@ -399,19 +399,19 @@ aws iam delete-role \
 ```sh
 # List policy versions
 aws iam list-policy-versions \
-  --policy-arn arn:aws:iam::395380602678:policy/GitHubActionsDeployPolicy \
+  --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/GitHubActionsDeployPolicy \
   --region ap-southeast-2
 
 # Delete old versions (keep only default)
 aws iam list-policy-versions \
-  --policy-arn arn:aws:iam::395380602678:policy/GitHubActionsDeployPolicy \
+  --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/GitHubActionsDeployPolicy \
   --region ap-southeast-2 \
   --query 'Versions[?IsDefaultVersion==`false`].VersionId' \
-  --output text | xargs -n1 aws iam delete-policy-version --policy-arn arn:aws:iam::395380602678:policy/GitHubActionsDeployPolicy --version-id
+  --output text | xargs -n1 aws iam delete-policy-version --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/GitHubActionsDeployPolicy --version-id
 
 # Delete policy
 aws iam delete-policy \
-  --policy-arn arn:aws:iam::395380602678:policy/GitHubActionsDeployPolicy \
+  --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/GitHubActionsDeployPolicy \
   --region ap-southeast-2
 ```
 
@@ -429,12 +429,12 @@ gh secret delete AWS_DEPLOY_ROLE_ARN
 ```sh
 # Check if OIDC provider is used by new roles
 aws iam list-entities-for-policy \
-  --policy-arn arn:aws:iam::395380602678:policy/GitHubActionsDeployPolicy \
+  --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/GitHubActionsDeployPolicy \
   --region ap-southeast-2
 
 # If not used, delete:
 aws iam delete-open-id-connect-provider \
-  --open-id-connect-provider-arn arn:aws:iam::395380602678:oidc-provider/token.actions.githubusercontent.com \
+  --open-id-connect-provider-arn arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com \
   --region ap-southeast-2
 ```
 
@@ -466,7 +466,7 @@ Update migration-state.json:
     "test-deployments",
     "teardown-old-infrastructure"
   ],
-  "old_role_arn": "arn:aws:iam::395380602678:role/GitHubActionsDeployRole",
+  "old_role_arn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole",
   "old_role_removed": true,
   "new_infrastructure_stacks": {
     "dev": "monorepo-fem-devops-dev",
@@ -523,7 +523,7 @@ If the migration encounters issues, follow this rollback procedure:
 ### Rollback Step 1: Restore Old GitHub Secret
 
 ```sh
-gh secret set AWS_DEPLOY_ROLE_ARN --body "arn:aws:iam::395380602678:role/GitHubActionsDeployRole"
+gh secret set AWS_DEPLOY_ROLE_ARN --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/GitHubActionsDeployRole"
 ```
 
 ### Rollback Step 2: Revert Workflow Changes
