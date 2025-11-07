@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target environment"
+        description: 'Target environment'
         required: true
-        default: "dev"
+        default: 'dev'
         type: choice
         options:
           - dev
@@ -51,8 +51,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "pnpm"
+          node-version: '20'
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -144,8 +144,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "pnpm"
+          node-version: '20'
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -223,7 +223,7 @@ jobs:
       app-name: scryscraper
       environment: ${{ needs.detect-affected.outputs.environment }}
       working-directory: apps/scryscraper
-      output-key: ScryScraperFunction
+      output-key: ScryscraperFunction
       artefact-name: build-artefacts
     secrets:
       aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}

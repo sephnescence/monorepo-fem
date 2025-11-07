@@ -413,7 +413,7 @@ Resources:
 
   # Deployment role for Scryscraper application
   # Scoped to only deploy and manage scryscraper resources
-  ScryScraperDeployRole:
+  ScryscraperDeployRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub 'AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--${Environment}'
@@ -561,7 +561,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:events:${AWSRegion}:*:rule/scryscraper-*'
 
-              - Sid: ScryScraperS3Access
+              - Sid: ScryscraperS3Access
                 Effect: Allow
                 Action:
                   - 's3:CreateBucket'
@@ -579,7 +579,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:s3:::monorepo-fem-scryscraper-cache-*'
 
-              - Sid: ScryScraperDynamoDBAccess
+              - Sid: ScryscraperDynamoDBAccess
                 Effect: Allow
                 Action:
                   - 'dynamodb:CreateTable'
@@ -643,8 +643,8 @@ Outputs:
     Export:
       Name: !Sub 'monorepo-fem-pulse-publisher-deploy-role-arn-${Environment}'
 
-  ScryScraperDeployRoleArn:
+  ScryscraperDeployRoleArn:
     Description: ARN of the Scryscraper deployment role
-    Value: !GetAtt ScryScraperDeployRole.Arn
+    Value: !GetAtt ScryscraperDeployRole.Arn
     Export:
       Name: !Sub 'monorepo-fem-scryscraper-deploy-role-arn-${Environment}'

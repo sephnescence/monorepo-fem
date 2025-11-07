@@ -71,9 +71,7 @@
         "lambda:UpdateFunctionCode",
         "lambda:UpdateFunctionConfiguration"
       ],
-      "Resource": [
-        "arn:aws:lambda:${AWS_REGION}:*:function:scryscraper-*"
-      ]
+      "Resource": ["arn:aws:lambda:${AWS_REGION}:*:function:scryscraper-*"]
     },
     {
       "Sid": "IAMRoleAccess",
@@ -91,9 +89,7 @@
         "iam:TagRole",
         "iam:UntagRole"
       ],
-      "Resource": [
-        "arn:aws:iam::*:role/scryscraper-*"
-      ]
+      "Resource": ["arn:aws:iam::*:role/scryscraper-*"]
     },
     {
       "Sid": "CloudWatchAccess",
@@ -136,12 +132,10 @@
         "events:PutTargets",
         "events:RemoveTargets"
       ],
-      "Resource": [
-        "arn:aws:events:${AWS_REGION}:*:rule/scryscraper-*"
-      ]
+      "Resource": ["arn:aws:events:${AWS_REGION}:*:rule/scryscraper-*"]
     },
     {
-      "Sid": "ScryScraperS3Access",
+      "Sid": "ScryscraperS3Access",
       "Effect": "Allow",
       "Action": [
         "s3:CreateBucket",
@@ -157,12 +151,10 @@
         "s3:PutBucketVersioning",
         "s3:PutLifecycleConfiguration"
       ],
-      "Resource": [
-        "arn:aws:s3:::monorepo-fem--scryscraper--cache--*"
-      ]
+      "Resource": ["arn:aws:s3:::monorepo-fem--scryscraper--cache--*"]
     },
     {
-      "Sid": "ScryScraperDynamoDBAccess",
+      "Sid": "ScryscraperDynamoDBAccess",
       "Effect": "Allow",
       "Action": [
         "dynamodb:CreateTable",

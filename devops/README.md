@@ -209,9 +209,9 @@ Components are separated by double underscores (`__`) for clarity.
 | `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV`      | `PulsePublisherDeployRoleArn`     | dev         |
 | `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP`      | `PulsePublisherDeployRoleArn`     | exp         |
 | `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD`     | `PulsePublisherDeployRoleArn`     | prod        |
-| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__DEV`          | `ScryScraperDeployRoleArn`        | dev         |
-| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__EXP`          | `ScryScraperDeployRoleArn`        | exp         |
-| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__PROD`         | `ScryScraperDeployRoleArn`        | prod        |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__DEV`          | `ScryscraperDeployRoleArn`        | dev         |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__EXP`          | `ScryscraperDeployRoleArn`        | exp         |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__PROD`         | `ScryscraperDeployRoleArn`        | prod        |
 
 To add secrets via GitHub CLI:
 
@@ -259,7 +259,7 @@ PULSE_DEPLOY_ARN_DEV=$(aws cloudformation describe-stacks \
 SCRYFALL_DEPLOY_ARN_DEV=$(aws cloudformation describe-stacks \
   --stack-name monorepo-fem-devops-dev \
   --region ap-southeast-2 \
-  --query 'Stacks[0].Outputs[?OutputKey==`ScryScraperDeployRoleArn`].OutputValue' \
+  --query 'Stacks[0].Outputs[?OutputKey==`ScryscraperDeployRoleArn`].OutputValue' \
   --output text)
 
 # Add deployment role secrets for dev
@@ -283,7 +283,7 @@ PULSE_DEPLOY_ARN_EXP=$(aws cloudformation describe-stacks \
 SCRYFALL_DEPLOY_ARN_EXP=$(aws cloudformation describe-stacks \
   --stack-name monorepo-fem-devops-exp \
   --region ap-southeast-2 \
-  --query 'Stacks[0].Outputs[?OutputKey==`ScryScraperDeployRoleArn`].OutputValue' \
+  --query 'Stacks[0].Outputs[?OutputKey==`ScryscraperDeployRoleArn`].OutputValue' \
   --output text)
 
 gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP --body "$HB_DEPLOY_ARN_EXP"
@@ -306,7 +306,7 @@ PULSE_DEPLOY_ARN_PROD=$(aws cloudformation describe-stacks \
 SCRYFALL_DEPLOY_ARN_PROD=$(aws cloudformation describe-stacks \
   --stack-name monorepo-fem-devops-prod \
   --region ap-southeast-2 \
-  --query 'Stacks[0].Outputs[?OutputKey==`ScryScraperDeployRoleArn`].OutputValue' \
+  --query 'Stacks[0].Outputs[?OutputKey==`ScryscraperDeployRoleArn`].OutputValue' \
   --output text)
 
 gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD --body "$HB_DEPLOY_ARN_PROD"
