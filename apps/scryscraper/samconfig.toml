@@ -5,9 +5,9 @@ cached = true
 parallel = true
 
 [default.deploy.parameters]
-stack_name = "scryscraper-dev"
+stack_name = "monorepo-fem--scryscraper--dev"
 resolve_s3 = true
-s3_prefix = "scryscraper-dev"
+s3_prefix = "monorepo-fem--scryscraper--dev"
 region = "ap-southeast-2"
 capabilities = "CAPABILITY_NAMED_IAM"
 parameter_overrides = "Environment=\"dev\""

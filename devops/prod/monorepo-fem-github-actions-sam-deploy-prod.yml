@@ -1,0 +1,650 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  DevOps infrastructure for monorepo-fem dev environment.
+  This template creates:
+  - PolicyManager IAM role with OIDC authentication for GitHub Actions
+  - Shared CloudWatch log group for application metrics
+  - Scoped to resources with 'monorepo-fem-*' naming pattern
+
+Parameters:
+  GitHubOrganization:
+    Type: String
+    Default: sephnescence
+    Description: GitHub organisation name
+
+  GitHubRepository:
+    Type: String
+    Default: monorepo-fem
+    Description: GitHub repository name
+
+  Environment:
+    Type: String
+    Default: prod
+    Description: Environment name (dev/exp/prod)
+    AllowedValues:
+      - dev
+      - exp
+      - prod
+
+  DeploymentBranch:
+    Type: String
+    Default: deploy-prod
+    Description: GitHub branch allowed to assume this role
+
+  AWSAccountId:
+    Type: String
+    Default: '${AWS_ACCOUNT_ID}'
+    Description: AWS Account ID for ARN construction
+
+  AWSRegion:
+    Type: String
+    Default: ap-southeast-2
+    Description: AWS Region for ARN construction
+
+Resources:
+  # OIDC Provider for GitHub Actions authentication
+  # Allows GitHub Actions workflows to assume AWS IAM roles without long-lived credentials
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+      Tags:
+        - Key: Name
+          Value: !Sub 'monorepo-fem-github-oidc-provider-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Shared CloudWatch log group for application metrics
+  # Apps can create log streams within this group but cannot modify the group itself
+  MetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/metrics/monorepo-fem-${Environment}'
+      RetentionInDays: 7
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  # Deployment role for Heartbeat Publisher application
+  # Scoped to only deploy and manage heartbeat-publisher resources
+  HeartbeatPublisherDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--${Environment}'
+      Description: !Sub 'Deployment role for heartbeat-publisher ${Environment} environment'
+      MaxSessionDuration: 3600
+
+      # OIDC trust policy - allows GitHub Actions to assume this role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt GitHubOIDCProvider.Arn
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
+              StringLike:
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${DeploymentBranch}'
+
+      # Inline deployment permissions scoped to heartbeat-publisher resources
+      Policies:
+        - PolicyName: !Sub 'heartbeat-publisher-deploy-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudFormationAccess
+                Effect: Allow
+                Action:
+                  - 'cloudformation:CreateChangeSet'
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DescribeChangeSet'
+                  - 'cloudformation:DescribeStackEvents'
+                  - 'cloudformation:DescribeStackResources'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DeleteChangeSet'
+                  - 'cloudformation:DeleteStack'
+                  - 'cloudformation:ExecuteChangeSet'
+                  - 'cloudformation:GetTemplate'
+                  - 'cloudformation:GetTemplateSummary'
+                  - 'cloudformation:ListChangeSets'
+                  - 'cloudformation:RollbackStack'
+                  - 'cloudformation:UpdateStack'
+                  - 'cloudformation:ValidateTemplate'
+                Resource:
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default-*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem--heartbeat-publisher--${Environment}*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:aws:transform/Serverless-2016-10-31'
+
+              - Sid: S3DeploymentBucketAccess
+                Effect: Allow
+                Action:
+                  - 's3:CreateBucket'
+                  - 's3:DeleteObject'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketVersioning'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:PutBucketPolicy'
+                  - 's3:PutBucketVersioning'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}/*'
+
+              - Sid: LambdaAccess
+                Effect: Allow
+                Action:
+                  - 'lambda:AddPermission'
+                  - 'lambda:CreateAlias'
+                  - 'lambda:CreateFunction'
+                  - 'lambda:DeleteAlias'
+                  - 'lambda:DeleteFunction'
+                  - 'lambda:GetFunction'
+                  - 'lambda:GetAlias'
+                  - 'lambda:GetFunctionConfiguration'
+                  - 'lambda:GetPolicy'
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:ListVersionsByFunction'
+                  - 'lambda:PublishVersion'
+                  - 'lambda:RemovePermission'
+                  - 'lambda:TagResource'
+                  - 'lambda:UpdateAlias'
+                  - 'lambda:UntagResource'
+                  - 'lambda:UpdateFunctionCode'
+                  - 'lambda:UpdateFunctionConfiguration'
+                Resource:
+                  - !Sub 'arn:aws:lambda:${AWSRegion}:*:function:heartbeat-publisher-*'
+
+              - Sid: IAMRoleAccess
+                Effect: Allow
+                Action:
+                  - 'iam:AttachRolePolicy'
+                  - 'iam:CreateRole'
+                  - 'iam:DeleteRole'
+                  - 'iam:DeleteRolePolicy'
+                  - 'iam:DetachRolePolicy'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:PassRole'
+                  - 'iam:PutRolePolicy'
+                  - 'iam:TagRole'
+                  - 'iam:UntagRole'
+                Resource:
+                  - !Sub 'arn:aws:iam::*:role/heartbeat-publisher-*'
+
+              - Sid: CloudWatchAccess
+                Effect: Allow
+                Action:
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:DeleteDashboards'
+                  - 'cloudwatch:GetDashboard'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:DeleteLogGroup'
+                  - 'logs:DeleteRetentionPolicy'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeMetricFilters'
+                  - 'logs:PutMetricFilter'
+                  - 'logs:DeleteMetricFilter'
+                  - 'logs:PutRetentionPolicy'
+                  - 'logs:TagLogGroup'
+                  - 'logs:UntagLogGroup'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/lambda/heartbeat-publisher-*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/lambda/heartbeat-publisher-*:*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/monorepo-fem/heartbeats-*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/monorepo-fem/heartbeats-*:*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-*/heartbeat-publisher*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-*/heartbeat-publisher*:*'
+
+              - Sid: EventBridgeAccess
+                Effect: Allow
+                Action:
+                  - 'events:DeleteRule'
+                  - 'events:DescribeRule'
+                  - 'events:DisableRule'
+                  - 'events:EnableRule'
+                  - 'events:ListTargetsByRule'
+                  - 'events:PutRule'
+                  - 'events:PutTargets'
+                  - 'events:RemoveTargets'
+                Resource:
+                  - !Sub 'arn:aws:events:${AWSRegion}:*:rule/heartbeat-publisher-*'
+
+              - Sid: PolicyManagementAccess
+                Effect: Allow
+                Action:
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListAttachedRolePolicies'
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWSAccountId}:role/AWS-OIDC-ROLE-ARN--monorepo-fem--*--${Environment}'
+
+      Tags:
+        - Key: Name
+          Value: !Sub 'GitHubActionsDeployRole-HeartbeatPublisher-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: heartbeat-publisher
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Deployment role for Pulse Publisher application
+  # Scoped to only deploy and manage pulse-publisher resources
+  PulsePublisherDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--${Environment}'
+      Description: !Sub 'Deployment role for pulse-publisher ${Environment} environment'
+      MaxSessionDuration: 3600
+
+      # OIDC trust policy - allows GitHub Actions to assume this role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt GitHubOIDCProvider.Arn
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
+              StringLike:
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${DeploymentBranch}'
+
+      # Inline deployment permissions scoped to pulse-publisher resources
+      Policies:
+        - PolicyName: !Sub 'pulse-publisher-deploy-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudFormationAccess
+                Effect: Allow
+                Action:
+                  - 'cloudformation:CreateChangeSet'
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DescribeChangeSet'
+                  - 'cloudformation:DescribeStackEvents'
+                  - 'cloudformation:DescribeStackResources'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DeleteChangeSet'
+                  - 'cloudformation:DeleteStack'
+                  - 'cloudformation:ExecuteChangeSet'
+                  - 'cloudformation:GetTemplate'
+                  - 'cloudformation:GetTemplateSummary'
+                  - 'cloudformation:ListChangeSets'
+                  - 'cloudformation:RollbackStack'
+                  - 'cloudformation:UpdateStack'
+                  - 'cloudformation:ValidateTemplate'
+                Resource:
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default-*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem--pulse-publisher--${Environment}*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:aws:transform/Serverless-2016-10-31'
+
+              - Sid: S3DeploymentBucketAccess
+                Effect: Allow
+                Action:
+                  - 's3:CreateBucket'
+                  - 's3:DeleteObject'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketVersioning'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:PutBucketPolicy'
+                  - 's3:PutBucketVersioning'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}/*'
+
+              - Sid: LambdaAccess
+                Effect: Allow
+                Action:
+                  - 'lambda:AddPermission'
+                  - 'lambda:CreateAlias'
+                  - 'lambda:CreateFunction'
+                  - 'lambda:DeleteAlias'
+                  - 'lambda:DeleteFunction'
+                  - 'lambda:GetFunction'
+                  - 'lambda:GetAlias'
+                  - 'lambda:GetFunctionConfiguration'
+                  - 'lambda:GetPolicy'
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:ListVersionsByFunction'
+                  - 'lambda:PublishVersion'
+                  - 'lambda:RemovePermission'
+                  - 'lambda:TagResource'
+                  - 'lambda:UpdateAlias'
+                  - 'lambda:UntagResource'
+                  - 'lambda:UpdateFunctionCode'
+                  - 'lambda:UpdateFunctionConfiguration'
+                Resource:
+                  - !Sub 'arn:aws:lambda:${AWSRegion}:*:function:pulse-publisher-*'
+
+              - Sid: IAMRoleAccess
+                Effect: Allow
+                Action:
+                  - 'iam:AttachRolePolicy'
+                  - 'iam:CreateRole'
+                  - 'iam:DeleteRole'
+                  - 'iam:DeleteRolePolicy'
+                  - 'iam:DetachRolePolicy'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:PassRole'
+                  - 'iam:PutRolePolicy'
+                  - 'iam:TagRole'
+                  - 'iam:UntagRole'
+                Resource:
+                  - !Sub 'arn:aws:iam::*:role/pulse-publisher-*'
+
+              - Sid: CloudWatchAccess
+                Effect: Allow
+                Action:
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:DeleteDashboards'
+                  - 'cloudwatch:GetDashboard'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:DeleteLogGroup'
+                  - 'logs:DeleteRetentionPolicy'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeMetricFilters'
+                  - 'logs:PutMetricFilter'
+                  - 'logs:DeleteMetricFilter'
+                  - 'logs:PutRetentionPolicy'
+                  - 'logs:TagLogGroup'
+                  - 'logs:UntagLogGroup'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/lambda/pulse-publisher-*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/lambda/pulse-publisher-*:*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/monorepo-fem/pulse-*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/monorepo-fem/pulse-*:*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-*/pulse-publisher*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-*/pulse-publisher*:*'
+
+              - Sid: EventBridgeAccess
+                Effect: Allow
+                Action:
+                  - 'events:DeleteRule'
+                  - 'events:DescribeRule'
+                  - 'events:DisableRule'
+                  - 'events:EnableRule'
+                  - 'events:ListTargetsByRule'
+                  - 'events:PutRule'
+                  - 'events:PutTargets'
+                  - 'events:RemoveTargets'
+                Resource:
+                  - !Sub 'arn:aws:events:${AWSRegion}:*:rule/pulse-publisher-*'
+
+              - Sid: PolicyManagementAccess
+                Effect: Allow
+                Action:
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListAttachedRolePolicies'
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWSAccountId}:role/AWS-OIDC-ROLE-ARN--monorepo-fem--*--${Environment}'
+
+      Tags:
+        - Key: Name
+          Value: !Sub 'GitHubActionsDeployRole-PulsePublisher-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: pulse-publisher
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # Deployment role for Scryscraper application
+  # Scoped to only deploy and manage scryscraper resources
+  ScryscraperDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--${Environment}'
+      Description: !Sub 'Deployment role for scryscraper ${Environment} environment'
+      MaxSessionDuration: 3600
+
+      # OIDC trust policy - allows GitHub Actions to assume this role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt GitHubOIDCProvider.Arn
+            Action: 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
+              StringLike:
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${DeploymentBranch}'
+
+      # Inline deployment permissions scoped to scryscraper resources
+      Policies:
+        - PolicyName: !Sub 'scryscraper-deploy-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudFormationAccess
+                Effect: Allow
+                Action:
+                  - 'cloudformation:CreateChangeSet'
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DescribeChangeSet'
+                  - 'cloudformation:DescribeStackEvents'
+                  - 'cloudformation:DescribeStackResources'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DeleteChangeSet'
+                  - 'cloudformation:DeleteStack'
+                  - 'cloudformation:ExecuteChangeSet'
+                  - 'cloudformation:GetTemplate'
+                  - 'cloudformation:GetTemplateSummary'
+                  - 'cloudformation:ListChangeSets'
+                  - 'cloudformation:RollbackStack'
+                  - 'cloudformation:UpdateStack'
+                  - 'cloudformation:ValidateTemplate'
+                Resource:
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default-*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/aws-sam-cli-managed-default/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:${AWSAccountId}:stack/monorepo-fem--scryscraper--${Environment}*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWSRegion}:aws:transform/Serverless-2016-10-31'
+
+              - Sid: S3DeploymentBucketAccess
+                Effect: Allow
+                Action:
+                  - 's3:CreateBucket'
+                  - 's3:DeleteObject'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketVersioning'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:PutBucketPolicy'
+                  - 's3:PutBucketVersioning'
+                  - 's3:PutObject'
+                Resource:
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}'
+                  - !Sub 'arn:aws:s3:::aws-sam-cli--monorepo-fem--${Environment}/*'
+
+              - Sid: LambdaAccess
+                Effect: Allow
+                Action:
+                  - 'lambda:AddPermission'
+                  - 'lambda:CreateAlias'
+                  - 'lambda:CreateFunction'
+                  - 'lambda:DeleteAlias'
+                  - 'lambda:DeleteFunction'
+                  - 'lambda:GetFunction'
+                  - 'lambda:GetAlias'
+                  - 'lambda:GetFunctionConfiguration'
+                  - 'lambda:GetPolicy'
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:ListVersionsByFunction'
+                  - 'lambda:PublishVersion'
+                  - 'lambda:RemovePermission'
+                  - 'lambda:TagResource'
+                  - 'lambda:UpdateAlias'
+                  - 'lambda:UntagResource'
+                  - 'lambda:UpdateFunctionCode'
+                  - 'lambda:UpdateFunctionConfiguration'
+                Resource:
+                  - !Sub 'arn:aws:lambda:${AWSRegion}:*:function:scryscraper-*'
+
+              - Sid: IAMRoleAccess
+                Effect: Allow
+                Action:
+                  - 'iam:AttachRolePolicy'
+                  - 'iam:CreateRole'
+                  - 'iam:DeleteRole'
+                  - 'iam:DeleteRolePolicy'
+                  - 'iam:DetachRolePolicy'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:PassRole'
+                  - 'iam:PutRolePolicy'
+                  - 'iam:TagRole'
+                  - 'iam:UntagRole'
+                Resource:
+                  - !Sub 'arn:aws:iam::*:role/scryscraper-*'
+
+              - Sid: CloudWatchAccess
+                Effect: Allow
+                Action:
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:DeleteDashboards'
+                  - 'cloudwatch:GetDashboard'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:DeleteLogGroup'
+                  - 'logs:DeleteRetentionPolicy'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeMetricFilters'
+                  - 'logs:PutMetricFilter'
+                  - 'logs:DeleteMetricFilter'
+                  - 'logs:PutRetentionPolicy'
+                  - 'logs:TagLogGroup'
+                  - 'logs:UntagLogGroup'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/lambda/scryscraper-*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/lambda/scryscraper-*:*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-*/scryscraper*'
+                  - !Sub 'arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/aws/metrics/monorepo-fem-*/scryscraper*:*'
+
+              - Sid: EventBridgeAccess
+                Effect: Allow
+                Action:
+                  - 'events:DeleteRule'
+                  - 'events:DescribeRule'
+                  - 'events:DisableRule'
+                  - 'events:EnableRule'
+                  - 'events:ListTargetsByRule'
+                  - 'events:PutRule'
+                  - 'events:PutTargets'
+                  - 'events:RemoveTargets'
+                Resource:
+                  - !Sub 'arn:aws:events:${AWSRegion}:*:rule/scryscraper-*'
+
+              - Sid: ScryscraperS3Access
+                Effect: Allow
+                Action:
+                  - 's3:CreateBucket'
+                  - 's3:DeleteBucket'
+                  - 's3:DeleteBucketPolicy'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketVersioning'
+                  - 's3:GetLifecycleConfiguration'
+                  - 's3:ListBucket'
+                  - 's3:PutBucketPolicy'
+                  - 's3:PutBucketPublicAccessBlock'
+                  - 's3:PutBucketVersioning'
+                  - 's3:PutLifecycleConfiguration'
+                Resource:
+                  - !Sub 'arn:aws:s3:::monorepo-fem-scryscraper-cache-*'
+
+              - Sid: ScryscraperDynamoDBAccess
+                Effect: Allow
+                Action:
+                  - 'dynamodb:CreateTable'
+                  - 'dynamodb:DeleteTable'
+                  - 'dynamodb:DescribeTable'
+                  - 'dynamodb:DescribeTimeToLive'
+                  - 'dynamodb:ListTagsOfResource'
+                  - 'dynamodb:TagResource'
+                  - 'dynamodb:UntagResource'
+                  - 'dynamodb:UpdateTable'
+                  - 'dynamodb:UpdateTimeToLive'
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWSRegion}:${AWSAccountId}:table/monorepo-fem-scryscraper-*'
+
+              - Sid: PolicyManagementAccess
+                Effect: Allow
+                Action:
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListAttachedRolePolicies'
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWSAccountId}:role/AWS-OIDC-ROLE-ARN--monorepo-fem--*--${Environment}'
+
+      Tags:
+        - Key: Name
+          Value: !Sub 'GitHubActionsDeployRole-Scryscraper-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: scryscraper
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+  MetricsLogGroupName:
+    Description: Name of the shared metrics CloudWatch log group
+    Value: !Ref MetricsLogGroup
+    Export:
+      Name: !Sub 'monorepo-fem-metrics-log-group-name-${Environment}'
+
+  MetricsLogGroupArn:
+    Description: ARN of the shared metrics CloudWatch log group
+    Value: !GetAtt MetricsLogGroup.Arn
+    Export:
+      Name: !Sub 'monorepo-fem-metrics-log-group-arn-${Environment}'
+
+  GitHubOIDCProviderArn:
+    Description: ARN of the GitHub OIDC provider
+    Value: !GetAtt GitHubOIDCProvider.Arn
+    Export:
+      Name: !Sub 'monorepo-fem-github-oidc-provider-arn-${Environment}'
+
+  HeartbeatPublisherDeployRoleArn:
+    Description: ARN of the Heartbeat Publisher deployment role
+    Value: !GetAtt HeartbeatPublisherDeployRole.Arn
+    Export:
+      Name: !Sub 'monorepo-fem-heartbeat-publisher-deploy-role-arn-${Environment}'
+
+  PulsePublisherDeployRoleArn:
+    Description: ARN of the Pulse Publisher deployment role
+    Value: !GetAtt PulsePublisherDeployRole.Arn
+    Export:
+      Name: !Sub 'monorepo-fem-pulse-publisher-deploy-role-arn-${Environment}'
+
+  ScryscraperDeployRoleArn:
+    Description: ARN of the Scryscraper deployment role
+    Value: !GetAtt ScryscraperDeployRole.Arn
+    Export:
+      Name: !Sub 'monorepo-fem-scryscraper-deploy-role-arn-${Environment}'

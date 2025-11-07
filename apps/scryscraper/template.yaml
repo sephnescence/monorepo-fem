@@ -27,7 +27,7 @@ Globals:
 
 Resources:
   # S3 Bucket for caching Scryfall API responses
-  ScryScraperCacheBucket:
+  ScryscraperCacheBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: !If [IsExpEnvironment, Delete, Retain]
     UpdateReplacePolicy: !If [IsExpEnvironment, Delete, Retain]
@@ -47,7 +47,7 @@ Resources:
         RestrictPublicBuckets: true
 
   # DynamoDB Table for storing MTG card data
-  ScryScraperTable:
+  ScryscraperTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: !If [IsExpEnvironment, Delete, Retain]
     UpdateReplacePolicy: !If [IsExpEnvironment, Delete, Retain]
@@ -66,7 +66,7 @@ Resources:
           KeyType: RANGE
 
   # Lambda's execution log group (exp environment with Delete policy)
-  ScryScraperLogGroupDelete:
+  ScryscraperLogGroupDelete:
     Type: AWS::Logs::LogGroup
     Condition: IsExpEnvironment
     DeletionPolicy: Delete
@@ -76,7 +76,7 @@ Resources:
       RetentionInDays: 7
 
   # Lambda's execution log group (non-exp environments with Retain policy)
-  ScryScraperLogGroupRetain:
+  ScryscraperLogGroupRetain:
     Type: AWS::Logs::LogGroup
     Condition: IsNotExpEnvironment
     DeletionPolicy: Retain
@@ -86,7 +86,7 @@ Resources:
       RetentionInDays: 7
 
   # IAM Role for Lambda Function
-  ScryScraperFunctionRole:
+  ScryscraperFunctionRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub scryscraper-lambda-role-${Environment}
@@ -100,7 +100,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: ScryScraperS3Access
+        - PolicyName: ScryscraperS3Access
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -109,12 +109,12 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:HeadObject
-                Resource: !Sub ${ScryScraperCacheBucket.Arn}/*
+                Resource: !Sub ${ScryscraperCacheBucket.Arn}/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
-                Resource: !GetAtt ScryScraperCacheBucket.Arn
-        - PolicyName: ScryScraperDynamoDBAccess
+                Resource: !GetAtt ScryscraperCacheBucket.Arn
+        - PolicyName: ScryscraperDynamoDBAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -125,23 +125,23 @@ Resources:
                   - dynamodb:BatchWriteItem
                   - dynamodb:Query
                 Resource:
-                  - !GetAtt ScryScraperTable.Arn
-                  - !Sub ${ScryScraperTable.Arn}/index/*
+                  - !GetAtt ScryscraperTable.Arn
+                  - !Sub ${ScryscraperTable.Arn}/index/*
 
   # Lambda Function
-  ScryScraperFunction:
+  ScryscraperFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub scryscraper-${Environment}
       Description: Fetches MTG card data from Scryfall API and stores it in DynamoDB and S3
       CodeUri: dist/
       Handler: index.handler
-      Role: !GetAtt ScryScraperFunctionRole.Arn
+      Role: !GetAtt ScryscraperFunctionRole.Arn
       Environment:
         Variables:
           NODE_ENV: !Ref Environment
-          SCRYSCRAPER_CACHE_BUCKET: !Ref ScryScraperCacheBucket
-          DYNAMODB_TABLE: !Ref ScryScraperTable
+          SCRYSCRAPER_CACHE_BUCKET: !Ref ScryscraperCacheBucket
+          DYNAMODB_TABLE: !Ref ScryscraperTable
       Events:
         ScheduledEvent:
           Type: Schedule
@@ -152,7 +152,7 @@ Resources:
             Enabled: true
 
   # CloudWatch Alarm for Lambda Errors
-  ScryScraperErrorAlarm:
+  ScryscraperErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
@@ -168,11 +168,11 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref ScryScraperFunction
+          Value: !Ref ScryscraperFunction
       TreatMissingData: notBreaching
 
   # CloudWatch Alarm for Lambda Throttles
-  ScryScraperThrottleAlarm:
+  ScryscraperThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
@@ -188,11 +188,11 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref ScryScraperFunction
+          Value: !Ref ScryscraperFunction
       TreatMissingData: notBreaching
 
   # CloudWatch Alarm for Lambda Duration approaching timeout
-  ScryScraperDurationAlarm:
+  ScryscraperDurationAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
@@ -208,7 +208,7 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref ScryScraperFunction
+          Value: !Ref ScryscraperFunction
       TreatMissingData: notBreaching
 
   # Log Metric Filter for 429 errors (Scryfall rate limiting)
@@ -218,8 +218,8 @@ Resources:
       FilterPattern: '"429"'
       LogGroupName: !If
         - IsExpEnvironment
-        - !Ref ScryScraperLogGroupDelete
-        - !Ref ScryScraperLogGroupRetain
+        - !Ref ScryscraperLogGroupDelete
+        - !Ref ScryscraperLogGroupRetain
       MetricTransformations:
         - MetricName: ScryfallRateLimitHit
           MetricNamespace: !Sub Scryscraper/${Environment}
@@ -244,12 +244,12 @@ Resources:
       TreatMissingData: notBreaching
 
 Outputs:
-  ScryScraperFunction:
+  ScryscraperFunction:
     Description: Name of the Scryscraper Lambda function
-    Value: !Ref ScryScraperFunction
-  ScryScraperCacheBucket:
+    Value: !Ref ScryscraperFunction
+  ScryscraperCacheBucket:
     Description: Name of the S3 cache bucket
-    Value: !Ref ScryScraperCacheBucket
-  ScryScraperTable:
+    Value: !Ref ScryscraperCacheBucket
+  ScryscraperTable:
     Description: Name of the DynamoDB table
-    Value: !Ref ScryScraperTable
+    Value: !Ref ScryscraperTable

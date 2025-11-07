@@ -1,24 +1,44 @@
 # Monorepo FEM
 
-Following along with various FEM courses over time:
+A TypeScript monorepo demonstrating serverless AWS architecture with least-privilege IAM roles, OIDC authentication, and infrastructure as code.
+
+## What is this?
+
+Following along with various FEM courses:
 
 1. [TypeScript Monorepos: Architect Maintainable Codebases](https://frontendmasters.com/courses/monorepos-v2/) - Mike North
 1. [Cursor & Claude Code: Professional AI Setup](https://frontendmasters.com/courses/pro-ai/) - Steve Kinney
 
 ## Mission
 
-Communication skills are the future of software engineering. This project explores using AI (primarily Claude) to build empathy for different roles and communicate more effectively across product, engineering, and business contexts
+Communication skills are the future of software engineering. This project explores using AI (primarily Claude) to build empathy for different roles and communicate more effectively across product, engineering, and business contexts.
 
-By creating a team of subagents, I'm developing a practice of explicitly reasoning about architectural decisions - treating AI as a conversation partner rather than a code generator
+By creating a team of subagents, I'm developing a practice of explicitly reasoning about architectural decisions - treating AI as a conversation partner rather than a code generator.
 
 **Core principles:**
 
-- **Documentation over memorisation** - Civil engineers design for unknown future maintainers. Will I remember everything after 5-10 years? I should design for that future maintainer, too. It's gonna be me (Awful throwback haha)
+- **Documentation over memorisation** - Design for unknown future maintainers
 - **Testing & monitoring are non-negotiable** - Observability outlasts individual tenure
-- **Leverage AI for velocity, not shortcuts** - Always understand the "why" behind decisions. Copy/pasting doesn't deepen understanding either. Stack Overflow may as well have been our first agent
+- **Leverage AI for velocity, not shortcuts** - Always understand the "why" behind decisions
 - **Communication scales; implementation details don't** - Understanding users and articulating trade-offs matters more than implementation details
 
-This approach aims to help me learn efficiently, reduce cognitive load, and work in a way that's more natural for my brain
+## Quick Start
+
+**For new developers:** See [DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md)
+
+**For contributors:** See [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+**Prerequisites:**
+```sh
+# Install pnpm
+npm install -g pnpm
+
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm lerna run lint,build,test
+```
 
 ## Spell Checking Configuration
 
@@ -83,3 +103,24 @@ Note: The current node_modules structure cannot be read by npm due to pnpm's sym
 ```
 
 Feel free to offer updates to this list
+
+## Architecture
+
+**Applications:**
+- heartbeat-publisher - Scheduled Lambda publishing heartbeat events
+- pulse-publisher - Scheduled Lambda publishing pulse events
+- scryscraper - Web scraping Lambda
+
+**Environments:** dev, exp, prod
+
+**Security model:** Per-app, per-environment IAM roles with OIDC authentication (9 deployment roles + 3 policy manager roles)
+
+**Branch strategy:** `main` → `deploy-dev` → `deploy-exp` → `deploy-prod`
+
+**Documentation:**
+- [AWS_OIDC_SETUP.md](./docs/AWS_OIDC_SETUP.md) - OIDC authentication overview
+- [BOOTSTRAP_IAM_ROLES.md](./docs/BOOTSTRAP_IAM_ROLES.md) - Infrastructure setup
+- [POLICY_MANAGEMENT.md](./docs/POLICY_MANAGEMENT.md) - IAM policy management
+- [devops/README.md](./devops/README.md) - Infrastructure details and bootstrap process
+- [TROUBLESHOOTING_DEPLOYMENTS.md](./docs/TROUBLESHOOTING_DEPLOYMENTS.md) - Common issues
+- [ADR_IAM_ROLE_SPLIT.md](./docs/ADR_IAM_ROLE_SPLIT.md) - Architecture decision record

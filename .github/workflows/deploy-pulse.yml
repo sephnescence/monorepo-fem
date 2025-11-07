@@ -1,6 +1,11 @@
 name: Deploy Pulse Publisher
 
 on:
+  push:
+    branches:
+      - deploy-dev
+      - deploy-exp
+      - deploy-prod
   workflow_dispatch:
     inputs:
       environment:
@@ -10,12 +15,12 @@ on:
         type: choice
         options:
           - dev
-          - staging
+          - exp
           - prod
 
 # Prevent concurrent deployments per environment
 concurrency:
-  group: pulse-deployment-${{ github.event.inputs.environment }}
+  group: pulse-deployment-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || github.ref_name }}
   cancel-in-progress: false # This will apparently be queued if there is a collision
 
 permissions:
@@ -27,9 +32,25 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set target environment
+        id: set-env
+        run: |
+          # For manual dispatch, use the selected environment; for branch push, extract from branch name
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            # Extract environment from branch name (deploy-dev -> dev, deploy-exp -> exp, deploy-prod -> prod)
+            BRANCH_NAME="${{ github.ref_name }}"
+            ENV="${BRANCH_NAME#deploy-}"
+            echo "environment=$ENV" >> $GITHUB_OUTPUT
+            echo "Deploying to environment: $ENV (from branch: $BRANCH_NAME)"
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -59,14 +80,20 @@ jobs:
   # Job 2: Deploy pulse-publisher
   # This job calls the reusable deployment workflow
   # AWS credentials are passed explicitly from repository secrets
+  # Secrets are selected based on the target environment
   deploy:
     needs: build-and-test
     uses: ./.github/workflows/reusable-deploy-lambda.yml
     with:
       app-name: pulse-publisher
-      environment: ${{ github.event.inputs.environment }}
+      environment: ${{ needs.build-and-test.outputs.environment }}
       working-directory: apps/pulse-publisher
       output-key: PulsePublisherFunction
       artefact-name: pulse-build-artefacts
+      policy-file: .github/policies/pulse-publisher-deploy-policy.json
     secrets:
-      aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
+      aws-oidc-role-arn: ${{
+        (needs.build-and-test.outputs.environment == 'dev' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV) ||
+        (needs.build-and-test.outputs.environment == 'exp' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP) ||
+        (needs.build-and-test.outputs.environment == 'prod' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD)
+      }}

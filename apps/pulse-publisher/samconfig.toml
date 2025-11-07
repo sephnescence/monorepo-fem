@@ -5,9 +5,9 @@ cached = true
 parallel = true
 
 [default.deploy.parameters]
-stack_name = "pulse-publisher-dev"
+stack_name = "monorepo-fem--pulse-publisher--dev"
 resolve_s3 = true
-s3_prefix = "pulse-publisher-dev"
+s3_prefix = "monorepo-fem--pulse-publisher--dev"
 region = "ap-southeast-2"
 capabilities = "CAPABILITY_IAM"
 parameter_overrides = "Environment=\"dev\""

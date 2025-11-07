@@ -3,17 +3,19 @@ name: Deploy
 on:
   push:
     branches:
-      - main
+      - deploy-dev
+      - deploy-exp
+      - deploy-prod
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target environment"
+        description: 'Target environment'
         required: true
-        default: "dev"
+        default: 'dev'
         type: choice
         options:
           - dev
-          - staging
+          - exp
           - prod
 
 # Prevent concurrent deployments per environment
@@ -49,8 +51,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "pnpm"
+          node-version: '20'
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -58,11 +60,15 @@ jobs:
       - name: Set target environment
         id: set-env
         run: |
-          # For manual dispatch, use the selected environment; for push to main, use dev
+          # For manual dispatch, use the selected environment; for branch push, extract from branch name
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
           else
-            echo "environment=dev" >> $GITHUB_OUTPUT
+            # Extract environment from branch name (deploy-dev -> dev, deploy-exp -> exp, deploy-prod -> prod)
+            BRANCH_NAME="${{ github.ref_name }}"
+            ENV="${BRANCH_NAME#deploy-}"
+            echo "environment=$ENV" >> $GITHUB_OUTPUT
+            echo "Deploying to environment: $ENV (from branch: $BRANCH_NAME)"
           fi
 
       - name: Detect affected projects
@@ -138,8 +144,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "pnpm"
+          node-version: '20'
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -217,7 +223,7 @@ jobs:
       app-name: scryscraper
       environment: ${{ needs.detect-affected.outputs.environment }}
       working-directory: apps/scryscraper
-      output-key: ScryScraperFunction
+      output-key: ScryscraperFunction
       artefact-name: build-artefacts
     secrets:
       aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
