@@ -99,6 +99,20 @@ Infrastructure is managed via CloudFormation templates in the `devops/` director
 
 **Note:** The following instructions describe the manual setup process that was used before CloudFormation templates were introduced. This is kept for reference only. Use the CloudFormation-based approach documented in [BOOTSTRAP_IAM_ROLES.md](./BOOTSTRAP_IAM_ROLES.md) instead.
 
+**CloudFormation Templates (Source of Truth):**
+
+The authoritative definition of OIDC roles and trust policies can be found in:
+
+- [devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml](../devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml)
+- [devops/exp/monorepo-fem-github-actions-sam-deploy-exp.yml](../devops/exp/monorepo-fem-github-actions-sam-deploy-exp.yml)
+- [devops/prod/monorepo-fem-github-actions-sam-deploy-prod.yml](../devops/prod/monorepo-fem-github-actions-sam-deploy-prod.yml)
+
+These templates define:
+- The GitHub OIDC provider configuration
+- Per-app deployment roles with scoped permissions
+- Trust policies that restrict access to specific deployment branches
+- The exact permissions each application role has
+
 <details>
 <summary>Click to expand legacy manual setup instructions</summary>
 
@@ -116,11 +130,17 @@ aws iam create-open-id-connect-provider \
 
 **Note:** The thumbprint value is GitHub's current certificate thumbprint. GitHub will notify if this changes.
 
-### 2. Create IAM Policy for Deployment (Legacy)
+### 2. Create IAM Policies for Deployment (Legacy, Per-App Architecture)
 
-Create a file named `.github/github-actions-deploy-policy.json`: (Refer to the existing one for the most up to date version. Failing that, check AWS directly)
+**Note:** With the per-app architecture, each application has its own deployment policy scoped to only its resources. The CloudFormation templates (referenced above) define these policies inline within each role.
 
-**Note on S3 bucket resources:** The S3 bucket ARNs use wildcards (`aws-sam-cli--monorepo-fem--*`) because SAM CLI automatically creates managed buckets with a random suffix when `resolve_s3 = true` is set in `samconfig.toml`. Both Lambda packages (`heartbeat-publisher` and `pulse-publisher`) use this setting, so SAM will create and manage the deployment bucket automatically.
+For manual setup, you would create separate policies for each application. For example, a policy for `heartbeat-publisher`:
+
+Create a file named `.github/heartbeat-publisher-deploy-policy.json`:
+
+**Note on S3 bucket resources:** The S3 bucket ARNs use wildcards (`aws-sam-cli--monorepo-fem--*`) because SAM CLI automatically creates managed buckets with a random suffix when `resolve_s3 = true` is set in `samconfig.toml`. SAM will create and manage the deployment bucket automatically.
+
+**Reference:** For the actual policies in use, see the inline `Policies` sections in the CloudFormation templates listed above.
 
 ```json
 {
@@ -272,9 +292,15 @@ aws iam create-policy \
 
 **Save the policy ARN** from the output - you'll need it in the next step.
 
-### 3. Create IAM Role for GitHub Actions
+### 3. Create IAM Roles for GitHub Actions (Per-App Architecture)
 
-Create a file named `.github/github-trust-policy.json` (Update `token.actions.githubusercontent.com:sub`: replace `YOUR_GITHUB_ORG` and `YOUR_REPO_NAME`):
+**Note:** You need to create separate roles for each application and environment combination.
+
+**Reference:** See the CloudFormation templates listed above for the exact trust policy structure used in production. The examples below are simplified for illustration.
+
+For example, to create a role for the `heartbeat-publisher` application in the `dev` environment:
+
+Create a file named `.github/github-trust-policy-heartbeat-publisher-dev.json`:
 
 ```json
 {
@@ -291,11 +317,7 @@ Create a file named `.github/github-trust-policy.json` (Update `token.actions.gi
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": [
-            "repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-dev",
-            "repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-exp",
-            "repo:sephnescence/monorepo-fem:ref:refs/heads/deploy-prod"
-          ]
+          "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_ORG/YOUR_REPO_NAME:ref:refs/heads/deploy-dev"
         }
       }
     }
@@ -303,37 +325,109 @@ Create a file named `.github/github-trust-policy.json` (Update `token.actions.gi
 }
 ```
 
-**Important:** The `StringLike` condition restricts the role to only be assumable from the three deployment branches (`deploy-dev`, `deploy-exp`, `deploy-prod`). This is a security best practice that prevents deployments from feature branches.
+**Important Security Notes:**
 
-Create the role:
+- Each role is scoped to a **single deployment branch** (e.g., `deploy-dev`, `deploy-exp`, or `deploy-prod`)
+- This prevents deployments from feature branches or wrong environments
+- The trust policy uses `StringLike` to match the specific branch pattern
+
+Create the role with the standardised naming convention:
 
 ```sh
 aws iam create-role \
-  --role-name GitHubActionsDeployRole \
-  --assume-role-policy-document file://.github/github-trust-policy.json \
+  --role-name AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--dev \
+  --assume-role-policy-document file://.github/github-trust-policy-heartbeat-publisher-dev.json \
   --region ap-southeast-2
 ```
 
-**Save the role ARN** from the output.
+**Repeat this process** for each app/environment combination:
 
-### 4. Attach Policy to Role
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--dev`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--exp`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--prod`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--dev`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--exp`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--prod`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--dev`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--exp`
+- `AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--prod`
 
-Replace `POLICY_ARN` with the ARN from step 2:
+Each role should trust the corresponding deployment branch:
+- `deploy-dev` for dev roles
+- `deploy-exp` for exp roles
+- `deploy-prod` for prod roles
+
+**Save the role ARNs** from the output - you'll need them when configuring GitHub secrets.
+
+### 4. Attach Policies to Roles
+
+For each role created in step 3, attach the corresponding application-specific policy.
+
+Example for the `heartbeat-publisher` dev role:
 
 ```sh
 aws iam attach-role-policy \
-  --role-name GitHubActionsDeployRole \
-  --policy-arn POLICY_ARN
+  --role-name AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--dev \
+  --policy-arn arn:aws:iam::YOUR_ACCOUNT_ID:policy/heartbeat-publisher-deploy-policy
 ```
 
-### 5. Configure GitHub Secret
+Repeat for each app/environment combination, ensuring each role gets the policy scoped to its application.
+
+**Note:** The CloudFormation approach (recommended) defines policies inline within each role, eliminating the need for separate policy management.
+
+### 5. Configure GitHub Secrets (Per-App Architecture)
+
+With the per-app architecture, you need to configure secrets for each application and environment combination.
+
+**Naming Convention:**
+
+Secrets follow the pattern: `AWS_OIDC_ROLE_ARN__<REPOSITORY>__<APP>__<ENVIRONMENT>`
+
+**Required Secrets:**
+
+For each app/environment combination, add the corresponding role ARN:
+
+| Secret Name | Example Value |
+|-------------|---------------|
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--dev` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--exp` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--prod` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--dev` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--exp` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--pulse-publisher--prod` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__DEV` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--dev` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__EXP` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--exp` |
+| `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__PROD` | `arn:aws:iam::123456789012:role/AWS-OIDC-ROLE-ARN--monorepo-fem--scryscraper--prod` |
+
+**To add each secret:**
 
 1. Go to your GitHub repository
 2. Navigate to Settings > Secrets and variables > Actions
 3. Click "New repository secret"
-4. Name: `AWS_DEPLOY_ROLE_ARN`
-5. Value: The role ARN from step 3 (format: `arn:aws:iam::123456789012:role/GitHubActionsDeployRole`)
+4. Enter the secret name from the table above
+5. Enter the corresponding role ARN as the value
 6. Click "Add secret"
+7. Repeat for all app/environment combinations
+
+**Usage in Workflows:**
+
+GitHub Actions workflows reference these secrets dynamically based on the target environment. For example, the heartbeat-publisher deployment workflow uses:
+
+```yaml
+secrets:
+  aws-oidc-role-arn: ${{
+    (needs.build-and-test.outputs.environment == 'dev' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV) ||
+    (needs.build-and-test.outputs.environment == 'exp' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP) ||
+    (needs.build-and-test.outputs.environment == 'prod' && secrets.AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD)
+  }}
+```
+
+This ensures each deployment uses the correct role for its app and environment.
+
+**Example Workflow Files:**
+- [.github/workflows/deploy-heartbeat.yml](../.github/workflows/deploy-heartbeat.yml)
+- [.github/workflows/deploy-pulse.yml](../.github/workflows/deploy-pulse.yml)
+- [.github/workflows/deploy-scryscraper.yml](../.github/workflows/deploy-scryscraper.yml)
 
 ## Verification
 
@@ -348,18 +442,33 @@ aws sts get-caller-identity --query Account --output text
 # Verify the OIDC provider exists
 aws iam list-open-id-connect-providers
 
-# Verify the role exists
-aws iam get-role --role-name GitHubActionsDeployRole
+# Verify a specific app role exists (example: heartbeat-publisher dev)
+aws iam get-role --role-name AWS-OIDC-ROLE-ARN--monorepo-fem--heartbeat-publisher--dev
+
+# List all OIDC roles for this repository
+aws iam list-roles --query 'Roles[?starts_with(RoleName, `AWS-OIDC-ROLE-ARN--monorepo-fem--`)].RoleName' --output table
 ```
 
 ## Security Considerations
 
-1. **Least Privilege:** The policy only grants permissions needed for SAM deployments
-2. **Resource Restrictions:** Actions are scoped to specific CloudFormation stacks and Lambda functions
-3. **Branch Restrictions:** The role can only be assumed from the deployment branches (`deploy-dev`, `deploy-exp`, `deploy-prod`), preventing deployments from feature branches
-4. **Short-lived Tokens:** Tokens expire after the workflow completes
-5. **No Long-lived Credentials:** No access keys stored in GitHub
-6. **Environment Isolation:** Each deployment branch targets a specific environment, allowing for progressive deployment testing
+**Per-App Architecture Benefits:**
+
+1. **Least Privilege:** Each role grants only the permissions needed for its specific application
+2. **Resource Restrictions:** Actions are scoped to specific app resources (e.g., `heartbeat-publisher-*` resources only)
+3. **Blast Radius Reduction:** A compromised role for one app cannot affect other applications
+4. **Branch Restrictions:** Each role can only be assumed from its specific deployment branch (`deploy-dev`, `deploy-exp`, or `deploy-prod`)
+5. **Environment Isolation:** Dev roles cannot access exp or prod resources, and vice versa
+6. **Short-lived Tokens:** Tokens expire after the workflow completes
+7. **No Long-lived Credentials:** No access keys stored in GitHub
+8. **Audit Trail:** CloudTrail logs clearly identify which app/environment role was used
+9. **Progressive Deployment:** Deploy to dev, then exp, then prod with separate roles for each stage
+
+**Key Security Features:**
+
+- Each role trusts only one deployment branch
+- Policies use resource-level restrictions (ARN patterns like `heartbeat-publisher-*`)
+- No role can modify IAM policies for other applications
+- All role assumptions are logged in CloudTrail
 
 ## Troubleshooting
 
@@ -368,16 +477,20 @@ aws iam get-role --role-name GitHubActionsDeployRole
 Check that:
 
 - The OIDC provider is created in the correct AWS account
-- The trust policy's `token.actions.githubusercontent.com:sub` matches your repository
-- The GitHub secret `AWS_DEPLOY_ROLE_ARN` contains the correct role ARN
+- The trust policy's `token.actions.githubusercontent.com:sub` matches your repository and deployment branch
+- The correct GitHub secret for your app and environment is configured (e.g., `AWS_OIDC_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV`)
+- The secret contains the correct role ARN for that specific app and environment
+- You're deploying from the correct branch (dev roles require `deploy-dev` branch, etc.)
 
 ### "Access Denied" during deployment
 
 Check that:
 
-- The IAM policy is attached to the role
-- The policy grants necessary permissions (CloudFormation, Lambda, S3, etc.)
-- Resource ARNs in the policy match your stack names
+- The IAM policy is attached to the correct app-specific role
+- The policy grants necessary permissions for that specific application (CloudFormation, Lambda, S3, etc.)
+- Resource ARNs in the policy match your app's resource naming pattern (e.g., `heartbeat-publisher-*`)
+- You're using the correct role for the app you're deploying (not mixing up app roles)
+- The role has permissions for the specific environment you're deploying to
 
 ### Thumbprint errors
 
