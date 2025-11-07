@@ -238,52 +238,70 @@ aws cloudformation describe-stacks \
 
 ### Add Outputs to GitHub Secrets
 
-The following secrets need to be added to the GitHub repository:
+The following secrets need to be added to the GitHub repository.
+
+#### Secret Naming Convention
+
+Secrets follow this naming pattern:
+
+```
+AWS_OIDC_<ROLE_TYPE>_ROLE_ARN__<REPOSITORY>__<APP>__<ENVIRONMENT>
+```
+
+Where:
+- `ROLE_TYPE`: `DEPLOY` or `POLICY_MANAGER`
+- `REPOSITORY`: `MONOREPO_FEM` (repository name in SCREAMING_SNAKE_CASE)
+- `APP`: App name in SCREAMING_SNAKE_CASE (only for deploy roles)
+- `ENVIRONMENT`: `DEV`, `EXP`, or `PROD`
+
+Components are separated by double underscores (`__`) for clarity.
+
+#### Required Secrets
 
 | Secret Name | CloudFormation Output | Environment |
 |------------|----------------------|-------------|
-| `AWS_POLICY_MANAGER_ROLE_ARN_DEV` | `PolicyManagerRoleArn` | dev |
-| `AWS_POLICY_MANAGER_ROLE_ARN_EXP` | `PolicyManagerRoleArn` | exp |
-| `AWS_POLICY_MANAGER_ROLE_ARN_PROD` | `PolicyManagerRoleArn` | prod |
-| `AWS_HEARTBEAT_PUBLISHER_DEPLOY_ROLE_ARN_DEV` | `HeartbeatPublisherDeployRoleArn` | dev |
-| `AWS_HEARTBEAT_PUBLISHER_DEPLOY_ROLE_ARN_EXP` | `HeartbeatPublisherDeployRoleArn` | exp |
-| `AWS_HEARTBEAT_PUBLISHER_DEPLOY_ROLE_ARN_PROD` | `HeartbeatPublisherDeployRoleArn` | prod |
-| `AWS_PULSE_PUBLISHER_DEPLOY_ROLE_ARN_DEV` | `PulsePublisherDeployRoleArn` | dev |
-| `AWS_PULSE_PUBLISHER_DEPLOY_ROLE_ARN_EXP` | `PulsePublisherDeployRoleArn` | exp |
-| `AWS_PULSE_PUBLISHER_DEPLOY_ROLE_ARN_PROD` | `PulsePublisherDeployRoleArn` | prod |
-| `AWS_SCRYSCRAPER_DEPLOY_ROLE_ARN_DEV` | `ScryScraperDeployRoleArn` | dev |
-| `AWS_SCRYSCRAPER_DEPLOY_ROLE_ARN_EXP` | `ScryScraperDeployRoleArn` | exp |
-| `AWS_SCRYSCRAPER_DEPLOY_ROLE_ARN_PROD` | `ScryScraperDeployRoleArn` | prod |
+| `AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__DEV` | `PolicyManagerRoleArn` | dev |
+| `AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__EXP` | `PolicyManagerRoleArn` | exp |
+| `AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__PROD` | `PolicyManagerRoleArn` | prod |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV` | `HeartbeatPublisherDeployRoleArn` | dev |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP` | `HeartbeatPublisherDeployRoleArn` | exp |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD` | `HeartbeatPublisherDeployRoleArn` | prod |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV` | `PulsePublisherDeployRoleArn` | dev |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP` | `PulsePublisherDeployRoleArn` | exp |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD` | `PulsePublisherDeployRoleArn` | prod |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__DEV` | `ScryScraperDeployRoleArn` | dev |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__EXP` | `ScryScraperDeployRoleArn` | exp |
+| `AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__PROD` | `ScryScraperDeployRoleArn` | prod |
 
 To add secrets via GitHub CLI:
 
 ```bash
-# Get the role ARN from CloudFormation output
-ROLE_ARN_DEV=$(aws cloudformation describe-stacks \
+# Get the policy manager role ARN from CloudFormation output
+POLICY_MANAGER_ARN_DEV=$(aws cloudformation describe-stacks \
   --stack-name monorepo-fem-devops-dev \
   --region ap-southeast-2 \
   --query 'Stacks[0].Outputs[?OutputKey==`PolicyManagerRoleArn`].OutputValue' \
   --output text)
 
 # Add to GitHub secrets
-gh secret set AWS_POLICY_MANAGER_ROLE_ARN_DEV --body "$ROLE_ARN_DEV"
+gh secret set AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__DEV --body "$POLICY_MANAGER_ARN_DEV"
 
 # Repeat for exp and prod
-ROLE_ARN_EXP=$(aws cloudformation describe-stacks \
+POLICY_MANAGER_ARN_EXP=$(aws cloudformation describe-stacks \
   --stack-name monorepo-fem-devops-exp \
   --region ap-southeast-2 \
   --query 'Stacks[0].Outputs[?OutputKey==`PolicyManagerRoleArn`].OutputValue' \
   --output text)
 
-gh secret set AWS_POLICY_MANAGER_ROLE_ARN_EXP --body "$ROLE_ARN_EXP"
+gh secret set AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__EXP --body "$POLICY_MANAGER_ARN_EXP"
 
-ROLE_ARN_PROD=$(aws cloudformation describe-stacks \
+POLICY_MANAGER_ARN_PROD=$(aws cloudformation describe-stacks \
   --stack-name monorepo-fem-devops-prod \
   --region ap-southeast-2 \
   --query 'Stacks[0].Outputs[?OutputKey==`PolicyManagerRoleArn`].OutputValue' \
   --output text)
 
-gh secret set AWS_POLICY_MANAGER_ROLE_ARN_PROD --body "$ROLE_ARN_PROD"
+gh secret set AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__PROD --body "$POLICY_MANAGER_ARN_PROD"
 
 # Get deployment role ARNs for dev
 HB_DEPLOY_ARN_DEV=$(aws cloudformation describe-stacks \
@@ -305,9 +323,9 @@ SCRY_DEPLOY_ARN_DEV=$(aws cloudformation describe-stacks \
   --output text)
 
 # Add deployment role secrets for dev
-gh secret set AWS_HEARTBEAT_PUBLISHER_DEPLOY_ROLE_ARN_DEV --body "$HB_DEPLOY_ARN_DEV"
-gh secret set AWS_PULSE_PUBLISHER_DEPLOY_ROLE_ARN_DEV --body "$PULSE_DEPLOY_ARN_DEV"
-gh secret set AWS_SCRYSCRAPER_DEPLOY_ROLE_ARN_DEV --body "$SCRY_DEPLOY_ARN_DEV"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__DEV --body "$HB_DEPLOY_ARN_DEV"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV --body "$PULSE_DEPLOY_ARN_DEV"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__DEV --body "$SCRY_DEPLOY_ARN_DEV"
 
 # Repeat for exp environment
 HB_DEPLOY_ARN_EXP=$(aws cloudformation describe-stacks \
@@ -328,9 +346,9 @@ SCRY_DEPLOY_ARN_EXP=$(aws cloudformation describe-stacks \
   --query 'Stacks[0].Outputs[?OutputKey==`ScryScraperDeployRoleArn`].OutputValue' \
   --output text)
 
-gh secret set AWS_HEARTBEAT_PUBLISHER_DEPLOY_ROLE_ARN_EXP --body "$HB_DEPLOY_ARN_EXP"
-gh secret set AWS_PULSE_PUBLISHER_DEPLOY_ROLE_ARN_EXP --body "$PULSE_DEPLOY_ARN_EXP"
-gh secret set AWS_SCRYSCRAPER_DEPLOY_ROLE_ARN_EXP --body "$SCRY_DEPLOY_ARN_EXP"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__EXP --body "$HB_DEPLOY_ARN_EXP"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP --body "$PULSE_DEPLOY_ARN_EXP"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__EXP --body "$SCRY_DEPLOY_ARN_EXP"
 
 # Repeat for prod environment
 HB_DEPLOY_ARN_PROD=$(aws cloudformation describe-stacks \
@@ -351,9 +369,9 @@ SCRY_DEPLOY_ARN_PROD=$(aws cloudformation describe-stacks \
   --query 'Stacks[0].Outputs[?OutputKey==`ScryScraperDeployRoleArn`].OutputValue' \
   --output text)
 
-gh secret set AWS_HEARTBEAT_PUBLISHER_DEPLOY_ROLE_ARN_PROD --body "$HB_DEPLOY_ARN_PROD"
-gh secret set AWS_PULSE_PUBLISHER_DEPLOY_ROLE_ARN_PROD --body "$PULSE_DEPLOY_ARN_PROD"
-gh secret set AWS_SCRYSCRAPER_DEPLOY_ROLE_ARN_PROD --body "$SCRY_DEPLOY_ARN_PROD"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__HEARTBEAT_PUBLISHER__PROD --body "$HB_DEPLOY_ARN_PROD"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD --body "$PULSE_DEPLOY_ARN_PROD"
+gh secret set AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__SCRYSCRAPER__PROD --body "$SCRY_DEPLOY_ARN_PROD"
 ```
 
 Alternatively, add secrets via GitHub web interface:

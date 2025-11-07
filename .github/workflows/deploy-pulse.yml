@@ -80,6 +80,7 @@ jobs:
   # Job 2: Deploy pulse-publisher
   # This job calls the reusable deployment workflow
   # AWS credentials are passed explicitly from repository secrets
+  # Secrets are selected based on the target environment
   deploy:
     needs: build-and-test
     uses: ./.github/workflows/reusable-deploy-lambda.yml
@@ -89,5 +90,15 @@ jobs:
       working-directory: apps/pulse-publisher
       output-key: PulsePublisherFunction
       artefact-name: pulse-build-artefacts
+      policy-file: .github/policies/pulse-publisher-deploy-policy.json
     secrets:
-      aws-oidc-deploy-role-arn: ${{ secrets.AWS_OIDC_DEPLOY_ROLE_ARN }}
+      aws-oidc-deploy-role-arn: ${{
+        (needs.build-and-test.outputs.environment == 'dev' && secrets.AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__DEV) ||
+        (needs.build-and-test.outputs.environment == 'exp' && secrets.AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__EXP) ||
+        (needs.build-and-test.outputs.environment == 'prod' && secrets.AWS_OIDC_DEPLOY_ROLE_ARN__MONOREPO_FEM__PULSE_PUBLISHER__PROD)
+      }}
+      aws-oidc-policy-manager-role-arn: ${{
+        (needs.build-and-test.outputs.environment == 'dev' && secrets.AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__DEV) ||
+        (needs.build-and-test.outputs.environment == 'exp' && secrets.AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__EXP) ||
+        (needs.build-and-test.outputs.environment == 'prod' && secrets.AWS_OIDC_POLICY_MANAGER_ROLE_ARN__MONOREPO_FEM__PROD)
+      }}
