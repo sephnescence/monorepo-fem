@@ -1,10 +1,77 @@
 # AWS OIDC Setup for GitHub Actions
 
-This guide explains how to configure AWS to allow GitHub Actions to deploy your Lambda functions using OpenID Connect (OIDC) authentication.
+This guide explains how to configure AWS to allow GitHub Actions to deploy your Lambda functions using OpenID Connect (OIDC) authentication with a per-app, per-environment IAM role architecture.
 
 ## Why OIDC?
 
 OIDC allows GitHub Actions to authenticate with AWS without storing long-lived credentials (access keys) in GitHub secrets. Instead, GitHub Actions receives a short-lived token from AWS that's only valid for the duration of the workflow run.
+
+## Architecture Overview
+
+This repository uses a **per-app, per-environment IAM role architecture** for enhanced security and least privilege access:
+
+- **3 Applications**: heartbeat-publisher, pulse-publisher, scryscraper
+- **3 Environments**: dev, exp, prod
+- **9 Deployment Roles**: One dedicated role per application per environment
+- **3 Policy Manager Roles**: One per environment for managing IAM policies during SAM deployments
+
+### Architecture Diagram
+
+```
+GitHub Actions (OIDC)
+    │
+    ├─► Dev Environment
+    │   ├─► GitHubActionsDeployRole-HeartbeatPublisher-dev
+    │   ├─► GitHubActionsDeployRole-PulsePublisher-dev
+    │   ├─► GitHubActionsDeployRole-ScrysScraper-dev
+    │   └─► PolicyManager-dev
+    │
+    ├─► Exp Environment
+    │   ├─► GitHubActionsDeployRole-HeartbeatPublisher-exp
+    │   ├─► GitHubActionsDeployRole-PulsePublisher-exp
+    │   ├─► GitHubActionsDeployRole-ScrysScraper-exp
+    │   └─► PolicyManager-exp
+    │
+    └─► Prod Environment
+        ├─► GitHubActionsDeployRole-HeartbeatPublisher-prod
+        ├─► GitHubActionsDeployRole-PulsePublisher-prod
+        ├─► GitHubActionsDeployRole-ScrysScraper-prod
+        └─► PolicyManager-prod
+```
+
+### Why Per-App, Per-Environment Roles?
+
+**Security Benefits:**
+
+- **Least Privilege**: Each role can only access resources for its specific application
+- **Blast Radius Reduction**: A compromised role cannot affect other applications
+- **Audit Trail**: CloudTrail logs clearly show which app/environment was accessed
+- **Environment Isolation**: Dev deployments cannot accidentally affect prod resources
+
+**Operational Benefits:**
+
+- **Clear Separation**: Developers know exactly which role is used for which deployment
+- **Policy Clarity**: Each role's permissions are focused and easier to audit
+- **Scalability**: Adding new applications or environments is straightforward
+- **Compliance**: Easier to demonstrate compliance with security frameworks
+
+### Role Responsibilities
+
+**Deployment Roles** (e.g., `GitHubActionsDeployRole-HeartbeatPublisher-dev`):
+
+- Deploy CloudFormation stacks for their specific application
+- Create and update Lambda functions
+- Manage CloudWatch log groups
+- Configure EventBridge rules
+- Access SAM deployment buckets
+- **Cannot** modify IAM policies or access other applications' resources
+
+**Policy Manager Roles** (e.g., `monorepo-fem-policy-manager-dev`):
+
+- Manage IAM policies during SAM deployments
+- Create and update IAM roles for Lambda execution
+- Attach policies to roles
+- **Cannot** deploy applications or Lambda functions
 
 ## Branch Strategy
 
@@ -30,7 +97,44 @@ You can also manually trigger deployments using workflow dispatch, which allows 
 
 ## Setup Steps
 
-### 1. Create GitHub OIDC Provider in AWS
+**For detailed bootstrap instructions, see [BOOTSTRAP_IAM_ROLES.md](./BOOTSTRAP_IAM_ROLES.md).**
+
+The infrastructure is now managed via CloudFormation templates in the `devops/` directory. Each environment (dev, exp, prod) has its own CloudFormation stack that creates:
+
+- GitHub OIDC provider
+- Deployment roles for all applications
+- Policy manager role
+- Shared CloudWatch log group
+
+### Quick Setup Overview
+
+1. Deploy CloudFormation stacks for each environment (dev, exp, prod)
+2. Retrieve role ARNs from CloudFormation outputs
+3. Add role ARNs to GitHub secrets
+4. Verify OIDC trust relationships
+5. Test deployments
+
+**Deploy a single environment:**
+
+```sh
+# Example: Deploy dev environment infrastructure
+aws cloudformation deploy \
+  --template-file devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml \
+  --stack-name monorepo-fem-devops-dev \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region ap-southeast-2
+```
+
+For complete step-by-step instructions, validation commands, and troubleshooting, refer to [BOOTSTRAP_IAM_ROLES.md](./BOOTSTRAP_IAM_ROLES.md).
+
+## Legacy Setup Instructions
+
+**Note:** The following instructions describe the manual setup process that was used before CloudFormation templates were introduced. This is kept for reference only. Use the CloudFormation-based approach documented in [BOOTSTRAP_IAM_ROLES.md](./BOOTSTRAP_IAM_ROLES.md) instead.
+
+<details>
+<summary>Click to expand legacy manual setup instructions</summary>
+
+### 1. Create GitHub OIDC Provider in AWS (Legacy)
 
 Run this command to create the OIDC identity provider:
 
@@ -44,7 +148,7 @@ aws iam create-open-id-connect-provider \
 
 **Note:** The thumbprint value is GitHub's current certificate thumbprint. GitHub will notify if this changes.
 
-### 2. Create IAM Policy for Deployment
+### 2. Create IAM Policy for Deployment (Legacy)
 
 Create a file named `.github/github-actions-deploy-policy.json`: (Refer to the existing one for the most up to date version. Failing that, check AWS directly)
 
@@ -319,8 +423,62 @@ echo | openssl s_client -servername token.actions.githubusercontent.com \
   awk -F= '{print tolower($2)}'
 ```
 
+</details>
+
+## Policy Validation
+
+The deployment workflows include policy validation to detect drift between source policies (in CloudFormation templates) and deployed policies (in AWS). This helps ensure:
+
+- Policies remain consistent with the infrastructure-as-code definitions
+- Manual policy changes are detected and flagged
+- Security posture is maintained over time
+
+For details on managing policies, see [POLICY_MANAGEMENT.md](./POLICY_MANAGEMENT.md).
+
+## Adding a New Application
+
+To add a new application to the deployment system:
+
+1. Create CloudFormation resources for the new app in each environment template
+2. Define IAM policies scoped to the new app's resources
+3. Update GitHub workflows to use the new role ARN
+4. Add new GitHub secrets for the role ARNs
+5. Test deployment in dev environment first
+
+For detailed instructions, see the "Adding a New App" section in [POLICY_MANAGEMENT.md](./POLICY_MANAGEMENT.md).
+
+## Monitoring and Auditing
+
+**CloudWatch Logs:**
+
+All Lambda functions log to CloudWatch log groups with standardised naming:
+
+- `/aws/lambda/{app-name}-{environment}-*`
+
+**CloudTrail:**
+
+All role assumptions and API calls are logged in CloudTrail. Use CloudTrail to:
+
+- Audit which roles are being used
+- Detect unauthorised access attempts
+- Track policy changes
+- Monitor deployment activity
+
+**IAM Access Analyser:**
+
+Use IAM Access Analyser to:
+
+- Identify external access to resources
+- Detect unused permissions
+- Validate least privilege implementation
+
 ## Resources
 
+- [BOOTSTRAP_IAM_ROLES.md](./BOOTSTRAP_IAM_ROLES.md) - Detailed setup instructions
+- [POLICY_MANAGEMENT.md](./POLICY_MANAGEMENT.md) - Policy management guide
+- [TESTING_PLAN_IAM_SPLIT.md](./TESTING_PLAN_IAM_SPLIT.md) - Testing strategy
+- [TROUBLESHOOTING_DEPLOYMENTS.md](./TROUBLESHOOTING_DEPLOYMENTS.md) - Common issues
 - [GitHub OIDC Documentation](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
 - [AWS IAM OIDC Identity Providers](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html)
 - [SAM CLI Reference](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-command-reference.html)
+- [AWS CloudFormation Best Practices](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html)

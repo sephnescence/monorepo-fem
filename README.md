@@ -83,3 +83,76 @@ Note: The current node_modules structure cannot be read by npm due to pnpm's sym
 ```
 
 Feel free to offer updates to this list
+
+## Deployment Architecture
+
+This repository uses a per-app, per-environment IAM role architecture for AWS deployments via GitHub Actions and OIDC authentication.
+
+### Architecture Overview
+
+- **3 Applications**: heartbeat-publisher, pulse-publisher, scryscraper
+- **3 Environments**: dev, exp, prod
+- **9 Deployment Roles**: One dedicated IAM role per application per environment
+- **3 Policy Manager Roles**: One per environment for managing IAM policies
+
+### Security Benefits
+
+- **Least Privilege**: Each role can only access resources for its specific application
+- **Blast Radius Reduction**: A compromised role cannot affect other applications
+- **Environment Isolation**: Dev deployments cannot accidentally affect prod resources
+- **Clear Audit Trail**: CloudTrail logs show exactly which app/environment was accessed
+
+### Branch Strategy
+
+Deployments are triggered by pushing to environment-specific branches:
+
+- `deploy-dev` - Triggers deployments to the development environment
+- `deploy-exp` - Triggers deployments to the experimental/staging environment
+- `deploy-prod` - Triggers deployments to the production environment
+
+The `main` branch does not trigger automatic deployments. To deploy:
+
+1. Merge your changes to `main`
+2. Merge `main` into the appropriate deployment branch
+3. Push the deployment branch to trigger the deployment
+
+You can also manually trigger deployments using workflow dispatch.
+
+### Documentation
+
+- **[AWS_OIDC_SETUP.md](./docs/AWS_OIDC_SETUP.md)** - Overview of OIDC authentication and multi-role architecture
+- **[BOOTSTRAP_IAM_ROLES.md](./docs/BOOTSTRAP_IAM_ROLES.md)** - Step-by-step infrastructure setup guide
+- **[POLICY_MANAGEMENT.md](./docs/POLICY_MANAGEMENT.md)** - How to manage and update IAM policies
+- **[TESTING_PLAN_IAM_SPLIT.md](./docs/TESTING_PLAN_IAM_SPLIT.md)** - Testing strategy and validation
+- **[TROUBLESHOOTING_DEPLOYMENTS.md](./docs/TROUBLESHOOTING_DEPLOYMENTS.md)** - Common deployment issues and solutions
+- **[DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md)** - Guide for new team members
+- **[ADR_IAM_ROLE_SPLIT.md](./docs/ADR_IAM_ROLE_SPLIT.md)** - Architecture decision record
+
+### Quick Start for Deployments
+
+1. **Bootstrap infrastructure** (one-time setup):
+   ```sh
+   # Deploy dev environment infrastructure
+   aws cloudformation deploy \
+     --template-file devops/dev/monorepo-fem-github-actions-sam-deploy-dev.yml \
+     --stack-name monorepo-fem-devops-dev \
+     --capabilities CAPABILITY_NAMED_IAM \
+     --region ap-southeast-2
+   ```
+
+2. **Configure GitHub secrets** with role ARNs from CloudFormation outputs
+
+3. **Deploy an application** by pushing to a deployment branch:
+   ```sh
+   git checkout main
+   # Make changes
+   git commit -m "Update application"
+   git push
+
+   # Merge to deployment branch
+   git checkout deploy-dev
+   git merge main
+   git push  # This triggers the deployment
+   ```
+
+For detailed instructions, see [BOOTSTRAP_IAM_ROLES.md](./docs/BOOTSTRAP_IAM_ROLES.md).
